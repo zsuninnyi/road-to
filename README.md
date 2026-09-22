@@ -15,7 +15,7 @@ Web first (React). A React Native app may follow. No application code yet — pl
 | --- | --- |
 | Web | React, TypeScript, Vite, TanStack Router / Query / Table / Form, Tailwind CSS, i18next |
 | API | Node.js, Fastify |
-| Database | PostgreSQL (Docker Compose locally; managed in production) |
+| Database | PostgreSQL via Kysely |
 | Deploy | Docker images for API, worker, and web |
 | Later | React Native (Expo), Redis / object storage if scale requires it |
 
