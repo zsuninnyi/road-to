@@ -158,7 +158,9 @@ Dedup is best-effort. Ambiguous matches should stay separate rather than silentl
 A project is a named container for a training goal, e.g. “Road to Marathon”.
 
 - The header brand is **RoadTo**. On a project page it reads **RoadTo {projectName}**.
+- Owner can create, rename, describe, archive, and delete a project.
 - An activity can belong to **multiple** projects.
+- **Pinned activity:** a project may pin **one** activity as the goal the training leads to (the marathon race, a key event, and so on). The pin is optional. The activity must belong to the project (pinning it assigns it if needed). Unpinning does not remove it from the project. If the activity is removed from the project, the pin is cleared.
 - **Manual assignment:** add/remove activities one by one from the activity page or a project picker.
 - **Auto-assignment rule:** a project may define one or more rules, each with:
   - date window (start, end),
@@ -167,7 +169,7 @@ A project is a named container for a training goal, e.g. “Road to Marathon”.
 - When a rule is saved, matching existing activities are assigned.
 - Newly imported activities that match a rule are assigned automatically.
 - Manual removal from a project is sticky: auto-rules must not re-add an activity the owner explicitly removed (unless the owner clears that override).
-- **Project activity list:** same list/detail capabilities as the global list, scoped to that project.
+- **Project activity list:** same list/detail capabilities as the global list, scoped to that project. The pinned activity is always first (once, with a pin/goal mark), then the rest newest-first. On a share page the pin is first only if that activity is visible to the viewer.
 - Deleting a project does not delete activities.
 
 ### 4.8 Aggregations
@@ -236,7 +238,8 @@ Mobile, later, maps onto the same resources with native navigation rather than t
 | Canonical activity | The deduped session the product lists and assigns to projects; stats are a field-level merge of its sources. |
 | Health sample | A non-activity metric (sleep, recovery, HRV, steps) for a time range or day. Sleep is never listed as an activity. |
 | Field provenance | Which provider supplied each canonical field after merge. |
-| Project | Owner-defined grouping of canonical activities, with optional auto-rules. |
+| Project | Owner-defined grouping of canonical activities, with optional auto-rules and one optional pinned goal activity. |
+| Pinned activity | The single goal session on a project (e.g. the marathon race). Always listed first on that project’s activity list. |
 | Visibility | `private` or `public` on a canonical activity (and later on a project). |
 | Share link | Unlisted URL that exposes a specific resource to viewers. |
 | Resync | Re-fetch provider data and rebuild normalized fields without dropping user-owned data. |

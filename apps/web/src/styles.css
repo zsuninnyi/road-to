@@ -1,24 +1,30 @@
 @import 'tailwindcss';
+@import './theme/default.css';
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --color-canvas: oklch(0.985 0.004 90);
-  --color-ink: oklch(0.24 0.02 50);
-  --color-muted: oklch(0.48 0.02 50);
-  --color-accent: oklch(0.45 0.08 175);
-  --color-accent-fg: oklch(0.99 0.01 175);
-  --color-line: oklch(0.9 0.01 90);
+  --font-sans: var(--theme-font-sans);
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-ink: var(--theme-ink);
+  --color-muted: var(--theme-muted);
+  --color-accent: var(--theme-accent);
+  --color-accent-fg: var(--theme-accent-fg);
+  --color-line: var(--theme-line);
+  --color-danger: var(--theme-danger);
+  --color-ring: var(--theme-ring);
+  --radius-sm: var(--theme-radius-sm);
+  --radius-md: var(--theme-radius-md);
+  --radius-lg: var(--theme-radius-lg);
 }
 
-html,
-body,
-#root {
-  min-height: 100%;
-}
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
 
-body {
-  margin: 0;
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
+  body {
+    @apply m-0 bg-canvas font-sans text-ink;
+  }
 }

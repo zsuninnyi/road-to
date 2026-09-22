@@ -64,7 +64,7 @@ Two deployable apps from day one, plus shared TypeScript packages. The web UI ne
 
 TanStack Start (SSR) is a later option for share-page SEO and Open Graph tags. v1 is a SPA: Fastify can serve a small HTML shell with OG tags for `/share/:token` if previews matter early.
 
-**Why Tailwind.** Utility classes keep the first screens moving without a component library lock-in, and a small `theme` (colors, type scale, spacing, radii) is enough to restyle the product later. Use `@theme` tokens from day one so “customizable later” means changing tokens, not hunting one-off hex values. Reach for a headless kit (e.g. Base UI or Ark) only when we need accessible dialogs/menus; do not adopt a heavy styled kit (MUI, Ant) on top of Tailwind.
+**Why Tailwind.** Utility classes keep the first screens moving without a component library lock-in. Named themes live under `apps/web/src/theme/`; v1 ships **`default`** (canvas, ink, accent, line, radii). Switch later by adding another `[data-theme='…']` file and calling `applyTheme`. Do not hunt one-off hex values in components.
 
 Tailwind is web CSS. React Native will not consume `className` strings unless we add NativeWind later. The portable part is the **token set** (color, space, type), not the utility markup. That matches the rest of the UI-sharing stance: domain and API client are shared; screens are platform-specific.
 
@@ -232,7 +232,9 @@ health_samples
   unique (provider, external_id)
 
 projects
-  id, user_id, name, slug, description, archived_at, created_at
+  id, user_id, name, slug, description
+  pinned_activity_id       -- nullable FK activities; the goal race / event
+  archived_at, created_at
 
 project_rules
   id, project_id
@@ -417,6 +419,7 @@ POST   /v1/projects
 GET    /v1/projects/:id
 PATCH  /v1/projects/:id
 DELETE /v1/projects/:id
+PUT    /v1/projects/:id/pin                    { activityId } or null to clear
 PUT    /v1/projects/:id/rules
 POST   /v1/projects/:id/activities             manual add
 DELETE /v1/projects/:id/activities/:activityId sticky remove
@@ -511,10 +514,11 @@ Build in vertical slices that are demoable. Do not connect four providers before
 ### Phase 3 — Projects
 
 - CRUD projects, manual assign, date-window + sport rules, sticky exclude.
+- One pinned goal activity per project; project list sorts pin first, then newest.
 - Project-scoped list.
 - Re-run rules after import.
 
-**Exit:** “Road to Marathon” auto-picks 2026-01-01..2026-04-30 runs.
+**Exit:** “Road to Marathon” auto-picks 2026-01-01..2026-04-30 runs, and the race can be pinned to the top of the list.
 
 ### Phase 4 — Sharing
 
@@ -562,7 +566,7 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 | Layer | What |
 | --- | --- |
-| `packages/domain` | Dedupe fixtures, field-merge/gap-fill, auto-assign + sticky exclude, share visibility filtering, aggregation math |
+| `packages/domain` | Dedupe fixtures, field-merge/gap-fill, auto-assign + sticky exclude, pinned project list order, share visibility filtering, aggregation math |
 | `packages/api-client` | Request errors, URL handling, mocked `fetch` |
 | API | Fastify `inject` for HTTP handlers; Testcontainers/Postgres when Kysely lands |
 | Web | Component tests (Testing Library + jsdom); Playwright for login + share as anonymous |

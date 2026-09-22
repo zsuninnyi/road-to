@@ -13,3 +13,5 @@ export function formatBrandTitle(brand: string, projectName?: string | null): st
   const trimmed = projectName?.trim();
   return trimmed ? `${brand} ${trimmed}` : brand;
 }
+
+export { sortProjectActivityList, type ProjectListActivity } from './project-list.js';

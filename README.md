@@ -8,6 +8,7 @@ Web first (React). A React Native app may follow.
 
 - [Initial requirements](docs/requirements.md) — product scope, user-facing behavior, non-goals, provider risks.
 - [Implementation plan](docs/implementation-plan.md) — architecture, stack, data model, sync/dedupe, API sketch, and phased build order.
+- [Repository structure](docs/repository.md) — workspaces, packages, directories, and how they connect.
 
 ## Repository layout
 
