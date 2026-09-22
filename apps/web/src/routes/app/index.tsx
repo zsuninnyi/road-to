@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 const api = createApiClient({ baseUrl: '/api' });
 
-export const Route = createFileRoute('/app')({
+export const Route = createFileRoute('/app/')({
   component: AppPage,
 });
 

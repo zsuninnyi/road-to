@@ -8,7 +8,7 @@ describe('i18n catalog', () => {
   });
 
   it('includes auth and shell copy used by the app shell', () => {
-    expect(en.appName).toBe('Road To');
+    expect(en.appName).toBe('RoadTo');
     expect(en.auth.signInWithGoogle).toBeTruthy();
     expect(en.shell.apiOk).toBeTruthy();
     expect(en.shell.apiDown).toBeTruthy();

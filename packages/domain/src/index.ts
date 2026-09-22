@@ -6,3 +6,10 @@ export type ActivityVisibility = (typeof activityVisibilities)[number];
 
 export const healthSampleKinds = ['sleep', 'recovery', 'hrv', 'rhr', 'strain', 'steps'] as const;
 export type HealthSampleKind = (typeof healthSampleKinds)[number];
+
+export const brandName = 'RoadTo';
+
+export function formatBrandTitle(brand: string, projectName?: string | null): string {
+  const trimmed = projectName?.trim();
+  return trimmed ? `${brand} ${trimmed}` : brand;
+}

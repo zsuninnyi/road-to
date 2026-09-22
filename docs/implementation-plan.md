@@ -60,6 +60,8 @@ Two deployable apps from day one, plus shared TypeScript packages. The web UI ne
 | Tailwind CSS (v4, Vite plugin) | Styling, layout, and later design-token theming |
 | i18next + react-i18next | UI copy. English catalog only in v1; no hardcoded user-facing strings |
 
+**State: no Redux.** Almost everything the UI shows is server state (activities, projects, health, integrations, session). TanStack Query owns that: cache, refetch, sync-status polling, infinite lists. Filters that should be shareable or restorable live in the URL via TanStack Router. Ephemeral UI (modal open, map hover) stays in `useState`. If we later need a small amount of client-only global state (e.g. unit preference before `/v1/me` is wired), add Zustand — not Redux. Redux would duplicate Query’s cache and add boilerplate this app does not need.
+
 TanStack Start (SSR) is a later option for share-page SEO and Open Graph tags. v1 is a SPA: Fastify can serve a small HTML shell with OG tags for `/share/:token` if previews matter early.
 
 **Why Tailwind.** Utility classes keep the first screens moving without a component library lock-in, and a small `theme` (colors, type scale, spacing, radii) is enough to restyle the product later. Use `@theme` tokens from day one so “customizable later” means changing tokens, not hunting one-off hex values. Reach for a headless kit (e.g. Base UI or Ark) only when we need accessible dialogs/menus; do not adopt a heavy styled kit (MUI, Ant) on top of Tailwind.
@@ -623,6 +625,7 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 | i18n | i18next, `packages/i18n`, English only in v1 | Adding a second locale |
 | Product posture | Personal first; still brand and attribute sources | Public launch / App Store |
 | Auth | Better Auth, Google then Apple | If native token story is awkward |
+| Web client state | TanStack Query + URL + `useState`; no Redux | A real client-only store is needed → Zustand |
 | Web styling | Tailwind CSS v4 + `@theme` tokens | Mobile starts and NativeWind is worth it |
 | Local Node | Host `pnpm`, Docker for Postgres only | Team onboarding is painful without a full Compose profile |
 | Deploy | Multi-stage Docker images for api/web/worker | Host offers a better native Node buildpack *and* we drop containers everywhere |

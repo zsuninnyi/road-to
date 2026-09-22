@@ -157,7 +157,7 @@ Dedup is best-effort. Ambiguous matches should stay separate rather than silentl
 
 A project is a named container for a training goal, e.g. “Road to Marathon”.
 
-- Owner can create, rename, describe, archive, and delete a project.
+- The header brand is **RoadTo**. On a project page it reads **RoadTo {projectName}**.
 - An activity can belong to **multiple** projects.
 - **Manual assignment:** add/remove activities one by one from the activity page or a project picker.
 - **Auto-assignment rule:** a project may define one or more rules, each with:

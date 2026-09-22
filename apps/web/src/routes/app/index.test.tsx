@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppPage } from './app';
+import { AppPage } from './index';
 
 function renderApp() {
   const queryClient = new QueryClient({
