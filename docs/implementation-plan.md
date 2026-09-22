@@ -88,11 +88,18 @@ If a design system is introduced, put Tailwind `@theme` tokens (and later a Nati
 | Choice | Use for |
 | --- | --- |
 | Node.js + Fastify + TypeScript | HTTP API |
-| Drizzle ORM + `pg` | Schema, migrations, queries |
+| Kysely + `pg` | Typed SQL against PostgreSQL |
+| kysely-ctl | Migrations (schema lives in migration files + a `Database` type) |
 | Zod | Request validation; share schemas with the client |
-| Better Auth | Google and Apple; session cookies on web |
+| Better Auth | Google and Apple; session cookies on web. Native adapter is Kysely. |
 | pg-boss | Sync, webhook follow-up, backfill (queue in Postgres, no Redis yet) |
 | `libsodium` or AWS KMS-style envelope | Encrypt provider tokens at rest |
+
+**Why Kysely, not Drizzle or Prisma.** This API is query-heavy: JSONB payloads, `date_trunc` aggregations, joins for merge/provenance, later maybe PostGIS. Kysely is a typed query builder, not an ORM — you write SQL-shaped code and TypeScript checks the columns. That matches how we already described the data model.
+
+Drizzle is the close alternative (also SQL-like, bundled migrations). We are not using it because Better Auth’s default database layer is Kysely, so one query toolkit covers auth tables and app tables. Prisma is a worse fit for JSONB and ad-hoc SQL.
+
+Migrations via **kysely-ctl**: each migration is up/down SQL (or Kysely schema builder). The TypeScript `Database` interface is the source of types; keep it in lockstep with migrations (review in PR; no codegen required for v1). Use `sql` fragments when a Postgres feature has no helper yet.
 
 ### 2.4 Database: PostgreSQL
 
@@ -472,7 +479,7 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 ### Phase 0 — Skeleton (foundation)
 
-- Monorepo, Docker Compose Postgres, Drizzle migrations for `users` + empty `activities`.
+- Monorepo, Docker Compose Postgres, Kysely + kysely-ctl migrations for `users` + empty `activities`.
 - Fastify health check, Better Auth Google (Apple can follow in the same phase).
 - Web: login, empty app shell, TanStack Router + Query, Tailwind with a small `@theme` token set, i18next with `en` catalog.
 - CI: typecheck + lint.
@@ -600,6 +607,7 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 | --- | --- | --- |
 | API vs BFF-in-React | Separate Fastify API | Never for this product |
 | Database | PostgreSQL | Unlikely |
+| SQL layer | Kysely + kysely-ctl (not Drizzle/Prisma) | Never, unless Better Auth adapter story changes |
 | Queue | pg-boss in Postgres | Job latency/volume hurts |
 | Cache | None in v1 | Dashboard queries > ~200ms p95 |
 | Web maps | MapLibre | Need satellite style with a paid provider |
@@ -623,7 +631,7 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 When you are ready to write code, start with Phase 0 only:
 
 1. pnpm workspace + `apps/api` + `apps/web` + `packages/domain` + `packages/i18n`.
-2. Dockerized Postgres + Drizzle + `users`.
+2. Dockerized Postgres + Kysely migrations + `users`.
 3. Better Auth Google + a protected `/app` route.
 
 Stop there and plug in Strava next. Do not scaffold all four adapters up front beyond empty `ActivityProvider` interfaces.
