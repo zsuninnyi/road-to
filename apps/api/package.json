@@ -1,0 +1,22 @@
+{
+  "name": "@road-to/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.6.0"
+  },
+  "devDependencies": {
+    "@road-to/tsconfig": "workspace:*",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.3"
+  }
+}

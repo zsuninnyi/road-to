@@ -556,11 +556,14 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 ## 9. Testing strategy
 
+**Runner:** Vitest for unit and component tests (`pnpm test`). Playwright later for logged-out share flows.
+
 | Layer | What |
 | --- | --- |
 | `packages/domain` | Dedupe fixtures, field-merge/gap-fill, auto-assign + sticky exclude, share visibility filtering, aggregation math |
-| API integration | Testcontainers or docker Postgres: OAuth mocked, webhook → job → rows |
-| Web | Component tests for list/detail; Playwright for login + share as anonymous |
+| `packages/api-client` | Request errors, URL handling, mocked `fetch` |
+| API | Fastify `inject` for HTTP handlers; Testcontainers/Postgres when Kysely lands |
+| Web | Component tests (Testing Library + jsdom); Playwright for login + share as anonymous |
 | Providers | Contract tests with recorded fixtures (never live tokens in CI) |
 
 Golden fixtures: two Strava/Garmin copies of the same run; a treadmill run vs an outdoor run at a similar time (must not merge); a run the user removed from a project that must not reappear after sync.

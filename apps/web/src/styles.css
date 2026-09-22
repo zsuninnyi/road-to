@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --color-canvas: oklch(0.985 0.004 90);
+  --color-ink: oklch(0.24 0.02 50);
+  --color-muted: oklch(0.48 0.02 50);
+  --color-accent: oklch(0.45 0.08 175);
+  --color-accent-fg: oklch(0.99 0.01 175);
+  --color-line: oklch(0.9 0.01 90);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
