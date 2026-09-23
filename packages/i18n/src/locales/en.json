@@ -10,7 +10,7 @@
     "signIn": "Sign in",
     "signInWithGoogle": "Sign in with Google",
     "signOut": "Sign out",
-    "comingSoon": "Google sign-in will be available in the next step."
+    "googleHint": "Use your Google account to continue."
   },
   "shell": {
     "emptyTitle": "Welcome",

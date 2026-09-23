@@ -1,37 +1,35 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { renderRoute, signedInUser, stubSession } from '../test/router';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
-import { routeTree } from '../routeTree.gen';
+import { cleanup, screen } from '@testing-library/react';
 
-async function renderRoute(path: string) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  const router = createRouter({
-    routeTree,
-    history: createMemoryHistory({ initialEntries: [path] }),
-    context: { queryClient },
-    trailingSlash: 'never',
-  });
+const { signOut } = vi.hoisted(() => ({
+  signOut: vi.fn().mockResolvedValue({}),
+}));
 
-  await router.load();
+vi.mock('../auth/client', () => ({
+  authClient: {
+    signIn: { social: vi.fn() },
+    signOut,
+  },
+}));
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
 
 describe('brand header', () => {
   it('shows RoadTo when no project is open', async () => {
+    stubSession(null);
     await renderRoute('/');
     expect(await screen.findByRole('link', { name: 'RoadTo' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0);
   });
 
   it('becomes RoadTo {projectName} after creating a project', async () => {
+    stubSession(signedInUser);
     const user = userEvent.setup();
     await renderRoute('/app/projects');
 
@@ -40,5 +38,19 @@ describe('brand header', () => {
 
     expect(await screen.findByRole('link', { name: 'RoadTo Marathon' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Marathon' })).toBeInTheDocument();
+  });
+
+  it('shows sign out when a session exists', async () => {
+    stubSession(signedInUser);
+    await renderRoute('/app');
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+  });
+});
+
+describe('protected app routes', () => {
+  it('sends guests from /app to login', async () => {
+    stubSession(null);
+    await renderRoute('/app');
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 });

@@ -96,7 +96,7 @@ road-to/
     └── tsconfig/                @road-to/tsconfig
 ```
 
-Not in the tree yet (planned): `apps/mobile`, Kysely migrations, Redis, Dockerfiles for deploy, Better Auth, provider adapters.
+Not in the tree yet (planned): `apps/mobile`, Redis, Dockerfiles for deploy, provider adapters.
 
 ---
 
@@ -104,7 +104,7 @@ Not in the tree yet (planned): `apps/mobile`, Kysely migrations, Redis, Dockerfi
 
 | File | Role |
 | --- | --- |
-| `package.json` | `pnpm dev`, `pnpm typecheck`, `pnpm lint`, `pnpm format`, `pnpm test`. `packageManager`: pnpm 12.5.1. |
+| `package.json` | `pnpm dev`, `pnpm migrate`, `pnpm typecheck`, `pnpm lint`, `pnpm format`, `pnpm test`. `packageManager`: pnpm 12.5.1. |
 | `pnpm-workspace.yaml` | Workspace globs + `allowBuilds.esbuild` (pnpm 12 will not run install scripts unless allowed). |
 | `tsconfig.json` | Project references to apps/packages so the editor can see the whole repo. Each package has its **own** tsconfig for `jsx` / Node. |
 | `vitest.config.ts` | `test.projects` — one Vitest run at the root covers all five testable packages. |
@@ -118,6 +118,7 @@ Not in the tree yet (planned): `apps/mobile`, Kysely migrations, Redis, Dockerfi
 
 ```sh
 corepack pnpm install
+corepack pnpm migrate      # Kysely: Better Auth tables + empty activities
 corepack pnpm dev          # API :3001 + web :5173
 corepack pnpm dev:api
 corepack pnpm dev:web
@@ -147,16 +148,21 @@ apps/web/
     ├── vite-env.d.ts
     ├── routeTree.gen.ts       Generated; do not edit. Ignored by ESLint/Prettier
     ├── test/setup.ts          jest-dom + await i18nReady
+    ├── test/router.tsx        Memory router + session fetch stub
+    ├── auth/
+    │   ├── client.ts          better-auth/react createAuthClient
+    │   └── session.ts         api client + meQueryOptions
     ├── theme/
     │   ├── index.ts           DEFAULT_THEME, applyTheme, getTheme
     │   ├── default.css        [data-theme='default'] token values
     │   └── theme.test.ts
     └── routes/                File-based routes
-        ├── __root.tsx         Header (RoadTo / RoadTo {projectName}), nav
+        ├── __root.tsx         Header (RoadTo / RoadTo {projectName}), nav, sign out
         ├── __root.test.tsx
         ├── index.tsx          /
-        ├── login.tsx          /login
+        ├── login.tsx          /login  (Google; redirects if signed in)
         ├── login.test.tsx
+        ├── app.tsx            /app layout; session required
         └── app/
             ├── index.tsx      /app  (empty shell + API health)
             ├── index.test.tsx
@@ -170,12 +176,12 @@ apps/web/
 | URL | Page |
 | --- | --- |
 | `/` | Landing |
-| `/login` | Google button (disabled until auth) |
-| `/app` | Signed-in shell placeholder |
+| `/login` | Google sign-in |
+| `/app` | Signed-in shell (redirects to `/login` if no session) |
 | `/app/projects` | Create project (name goes into the URL) |
 | `/app/projects/:id?name=` | Project page; header becomes `RoadTo {name}` |
 
-Vite proxies `http://127.0.0.1:5173/api/*` to Fastify (`/health` → `{ ok: true }`).
+Vite proxies `http://127.0.0.1:5173/api/auth/*` to Fastify as-is, and other `/api/*` by stripping `/api` (`/api/health` → `/health`, `/api/v1/me` → `/v1/me`).
 
 **Theming:** set `data-theme` on `<html>`. Tokens in `theme/default.css` (`--theme-canvas`, `--theme-ink`, …) are wired in `styles.css` `@theme` to utilities (`bg-canvas`, `text-ink`, `bg-accent`, `border-line`). A second theme is another `[data-theme='…']` file plus `applyTheme`.
 
@@ -183,20 +189,29 @@ Vite proxies `http://127.0.0.1:5173/api/*` to Fastify (`/health` → `{ ok: true
 
 ## 6. `apps/api` — `@road-to/api`
 
-Node Fastify process. No database connection yet.
+Node Fastify process. Kysely + Better Auth Google. Session cookie via `/api/auth/*`.
 
 ```
 apps/api/
-├── package.json               tsx watch for `dev`
+├── package.json               tsx watch; `migrate` via kysely-ctl
 ├── tsconfig.json              extends packages/tsconfig/node.json
 ├── vitest.config.ts
+├── kysely.config.ts           dialect `pg`, migrations/
+├── migrations/
+│   └── 20260923000000_auth_and_activities.ts
 └── src/
-    ├── app.ts                 buildApp({ logger }) — GET /health
-    ├── app.test.ts            Fastify inject, no listen
+    ├── env.ts                 DATABASE_URL, Better Auth, Google
+    ├── db/
+    │   ├── index.ts           Pool + Kysely
+    │   └── types.ts           Database interface
+    ├── auth.ts                betterAuth (Kysely/pg) + AuthLike for tests
+    ├── auth-routes.ts         GET/POST /api/auth/*
+    ├── app.ts                 buildApp — /health, /v1/me, auth
+    ├── app.test.ts            Fastify inject, fake auth, no listen
     └── index.ts               listen PORT (default 3001)
 ```
 
-Later this app grows Kysely, Better Auth, `/v1/*`, webhooks, and a worker entrypoint (same codebase).
+`GET /v1/me` returns `{ user }` or 401. Health does not need a database.
 
 ---
 
@@ -233,11 +248,11 @@ Typed `fetch` wrapper for the HTTP API.
 
 ```
 packages/api-client/src/
-├── index.ts         createApiClient, ApiError, health()
+├── index.ts         createApiClient, ApiError, health(), me()
 └── index.test.ts    mocked fetch
 ```
 
-Web uses `createApiClient({ baseUrl: '/api' })`. More methods (`activities`, `projects`) are added as the API grows.
+Web uses `createApiClient({ baseUrl: '/api' })` with `credentials: 'include'` so the session cookie is sent. More methods (`activities`, `projects`) are added as the API grows.
 
 ---
 
@@ -277,6 +292,7 @@ App tsconfigs **extend by relative path** (e.g. `../../packages/tsconfig/react.j
 | `requirements.md` | Product: auth, providers, dedupe/merge, projects, pin, sharing, i18n, branding |
 | `implementation-plan.md` | Stack, data model, sync, API sketch, phases 0–8 |
 | `repository.md` | This file — layout of the monorepo |
+| `auth.md` | Google OAuth + session cookie workflow |
 
 ---
 

@@ -9,6 +9,7 @@ Web first (React). A React Native app may follow.
 - [Initial requirements](docs/requirements.md) — product scope, user-facing behavior, non-goals, provider risks.
 - [Implementation plan](docs/implementation-plan.md) — architecture, stack, data model, sync/dedupe, API sketch, and phased build order.
 - [Repository structure](docs/repository.md) — workspaces, packages, directories, and how they connect.
+- [Auth workflow](docs/auth.md) — Google OAuth, session cookie, `/v1/me`, protected `/app`.
 
 ## Repository layout
 
@@ -26,13 +27,16 @@ packages/tsconfig Shared TypeScript configs
 Requires Node 22+ (see `.nvmrc`). This repo uses pnpm via Corepack:
 
 ```sh
+cp .env.example .env          # add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+docker compose up -d postgres
 corepack pnpm install
+corepack pnpm migrate
 corepack pnpm dev
 ```
 
 - Web: http://127.0.0.1:5173
 - API health: http://127.0.0.1:3001/health
-- Postgres (not wired yet): `docker compose up -d postgres`
+- Google callback (register in Google Cloud): `http://127.0.0.1:5173/api/auth/callback/google`
 
 ```sh
 corepack pnpm typecheck
