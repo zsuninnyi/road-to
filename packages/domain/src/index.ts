@@ -15,3 +15,14 @@ export function formatBrandTitle(brand: string, projectName?: string | null): st
 }
 
 export { sortProjectActivityList, type ProjectListActivity } from './project-list.js';
+export { sports, mapStravaSport, type Sport } from './sports.js';
+export { formatDistanceMeters, formatDurationSeconds, type Units } from './units.js';
+export {
+  activityFingerprint,
+  normalizeStravaSummary,
+  parseStravaSummary,
+  stravaBackfillAfterUnix,
+  stravaInitialBackfillDays,
+  type NormalizedProviderActivity,
+  type StravaSummaryActivity,
+} from './strava.js';

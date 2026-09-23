@@ -4,3 +4,8 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+packageExtensions:
+  react:
+    dependencies:
+      '@types/react': 19.3.0

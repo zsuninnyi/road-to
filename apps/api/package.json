@@ -18,7 +18,8 @@
     "better-auth": "^1.7.5",
     "fastify": "^5.6.0",
     "kysely": "^0.29.6",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "@road-to/domain": "workspace:*"
   },
   "devDependencies": {
     "@road-to/tsconfig": "workspace:*",

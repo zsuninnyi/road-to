@@ -1,7 +1,7 @@
 # RoadTo — repository structure
 
 **Audience:** anyone opening this repo for the first time  
-**Companion docs:** [requirements](./requirements.md) (product), [implementation plan](./implementation-plan.md) (how we will build the rest)
+**Companion docs:** [requirements](./requirements.md) (product), [implementation plan](./implementation-plan.md) (how we will build the rest), [auth](./auth.md), [Strava](./strava.md)
 
 This file describes **what is on disk today**: workspaces, packages, directories, and how they connect. It is a pnpm **monorepo** — one git repository, several packages that depend on each other locally (not published to npm).
 
@@ -52,11 +52,12 @@ Root `package.json` (`road-to`) is **private**. It holds repo-wide scripts (lint
                   \               /
                    @road-to/tsconfig   (dev, all TS packages)
 
+                    @road-to/api  ──► @road-to/domain
                     @road-to/api  ──dev──►  @road-to/tsconfig
 ```
 
 - **Web** is a client of the Fastify API over HTTP (`/api` proxy in Vite). It does not import `@road-to/api`.
-- **API** does not yet depend on `domain` or `api-client`. It will use `domain` when business rules move server-side.
+- **API** uses `domain` for Strava summary → canonical activity mapping.
 - **Later:** `apps/mobile` (Expo) would depend on `domain`, `api-client`, and `i18n` the same way web does.
 
 ---
@@ -74,7 +75,7 @@ road-to/
 ├── .prettierrc / .prettierignore
 ├── .editorconfig
 ├── .nvmrc                       Node 22
-├── .env.example                 PORT, DATABASE_URL, VITE_API_URL
+├── .env.example                 PORT, DATABASE_URL, Google, Strava
 ├── .gitignore
 ├── docker-compose.yml           Local Postgres 17 (not wired to the API yet)
 ├── LICENSE
@@ -85,7 +86,9 @@ road-to/
 ├── docs/
 │   ├── requirements.md
 │   ├── implementation-plan.md
-│   └── repository.md            This file
+│   ├── repository.md            This file
+│   ├── auth.md
+│   └── strava.md
 ├── apps/
 │   ├── api/                     @road-to/api   — Fastify
 │   └── web/                     @road-to/web   — Vite + React
@@ -164,7 +167,7 @@ apps/web/
         ├── login.test.tsx
         ├── app.tsx            /app layout; session required
         └── app/
-            ├── index.tsx      /app  (empty shell + API health)
+            ├── index.tsx      /app  (Strava connect + activity list)
             ├── index.test.tsx
             └── projects/
                 ├── index.tsx          /app/projects  (create form, not persisted)
@@ -177,7 +180,7 @@ apps/web/
 | --- | --- |
 | `/` | Landing |
 | `/login` | Google sign-in |
-| `/app` | Signed-in shell (redirects to `/login` if no session) |
+| `/app` | Signed-in activity list; Connect Strava (last 30 days) |
 | `/app/projects` | Create project (name goes into the URL) |
 | `/app/projects/:id?name=` | Project page; header becomes `RoadTo {name}` |
 
@@ -198,21 +201,25 @@ apps/api/
 ├── vitest.config.ts
 ├── kysely.config.ts           dialect `pg`, migrations/
 ├── migrations/
-│   └── 20260923000000_auth_and_activities.ts
+│   ├── 20260923000000_auth_and_activities.ts
+│   └── 20260923180000_strava_integrations.ts
 └── src/
-    ├── env.ts                 DATABASE_URL, Better Auth, Google
+    ├── env.ts                 DATABASE_URL, Better Auth, Google, Strava
     ├── db/
     │   ├── index.ts           Pool + Kysely
     │   └── types.ts           Database interface
     ├── auth.ts                betterAuth (Kysely/pg) + AuthLike for tests
     ├── auth-routes.ts         GET/POST /api/auth/* (hidden from OpenAPI)
     ├── swagger.ts             @fastify/swagger + UI at /docs
-    ├── app.ts                 buildApp — /health, /v1/me, auth, OpenAPI
+    ├── session.ts             requireUser for /v1 routes
+    ├── crypto/tokens.ts       AES-256-GCM for provider tokens
+    ├── integrations/          Strava OAuth, last-month import, list
+    ├── app.ts                 buildApp — health, me, auth, integrations
     ├── app.test.ts            Fastify inject, fake auth, no listen
     └── index.ts               listen PORT (default 3001)
 ```
 
-`GET /v1/me` returns `{ user }` or 401. Health does not need a database. OpenAPI JSON is `GET /docs/json`. The Better Auth catch-all is hidden; named OAuth paths are added in `transformObject`.
+`GET /v1/me` returns `{ user }` or 401. Health does not need a database. OpenAPI JSON is `GET /docs/json`. The Better Auth catch-all is hidden; named OAuth paths are added in `transformObject`. Strava connect is `POST /v1/integrations/strava/connect`; callback is `GET /v1/integrations/strava/callback` (via Vite `/api/v1/...`). First import is the last 30 days.
 
 ---
 
@@ -226,8 +233,11 @@ packages/domain/
 ├── tsconfig.json
 ├── vitest.config.ts
 └── src/
-    ├── index.ts               catalogs + formatBrandTitle; re-exports project-list
+    ├── index.ts               catalogs + formatBrandTitle; re-exports
     ├── index.test.ts
+    ├── sports.ts              sport enum + Strava sport_type map
+    ├── strava.ts              last-month window + summary → canonical
+    ├── units.ts               distance / duration formatting
     ├── project-list.ts        sortProjectActivityList (pinned race first)
     └── project-list.test.ts
 ```

@@ -494,6 +494,7 @@ Build in vertical slices that are demoable. Do not connect four providers before
 ### Phase 1 — Strava library
 
 - `integrations` + OAuth.
+- First import is the **last 30 days** so we can prove mapping against real data. Full history backfill stays a later step.
 - Backfill job + activity list + detail + MapLibre.
 - Store source payload and polyline.
 - Provider title as default; owner can override.

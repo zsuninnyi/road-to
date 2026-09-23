@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 
 export const swaggerRoutePrefix = '/docs';
 
-const errorSchema = {
+export const errorSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['error'],
@@ -136,6 +136,8 @@ export async function registerSwagger(app: FastifyInstance): Promise<void> {
         { name: 'ops', description: 'Process health' },
         { name: 'session', description: 'Signed-in user' },
         { name: 'better-auth', description: 'Google OAuth and session cookie (Better Auth)' },
+        { name: 'integrations', description: 'Connected training accounts (Strava first)' },
+        { name: 'activities', description: 'Canonical activity library' },
       ],
       components: {
         securitySchemes: {

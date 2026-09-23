@@ -16,6 +16,45 @@ export type MeResponse = {
   user: MeUser;
 };
 
+export type Integration = {
+  id: string;
+  provider: 'strava';
+  status: 'active' | 'expired' | 'error' | 'revoked';
+  externalUserId: string;
+  lastSyncAt: string | null;
+};
+
+export type IntegrationsResponse = {
+  integrations: Integration[];
+};
+
+export type ConnectStravaResponse = {
+  url: string;
+};
+
+export type ResyncResponse = {
+  imported: number;
+};
+
+export type Activity = {
+  id: string;
+  sport: string;
+  title: string;
+  startedAt: string;
+  endedAt: string;
+  distanceM: number | null;
+  movingTimeS: number | null;
+  elapsedTimeS: number | null;
+  elevationGainM: number | null;
+  avgHr: number | null;
+  mapPolyline: string | null;
+  sources: Array<{ provider: 'strava' }>;
+};
+
+export type ActivitiesResponse = {
+  activities: Activity[];
+};
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -43,6 +82,9 @@ export function createApiClient(options: ApiClientOptions) {
     if (!response.ok) {
       throw new ApiError(response.status, `Request failed: ${response.status} ${path}`);
     }
+    if (response.status === 204) {
+      return undefined as T;
+    }
     return (await response.json()) as T;
   }
 
@@ -52,6 +94,18 @@ export function createApiClient(options: ApiClientOptions) {
     },
     me(): Promise<MeResponse> {
       return request<MeResponse>('/v1/me');
+    },
+    integrations(): Promise<IntegrationsResponse> {
+      return request<IntegrationsResponse>('/v1/integrations');
+    },
+    connectStrava(): Promise<ConnectStravaResponse> {
+      return request<ConnectStravaResponse>('/v1/integrations/strava/connect', { method: 'POST' });
+    },
+    resyncIntegration(id: string): Promise<ResyncResponse> {
+      return request<ResyncResponse>(`/v1/integrations/${id}/resync`, { method: 'POST' });
+    },
+    activities(): Promise<ActivitiesResponse> {
+      return request<ActivitiesResponse>('/v1/activities');
     },
   };
 }

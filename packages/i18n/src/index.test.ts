@@ -14,5 +14,6 @@ describe('i18n catalog', () => {
     expect(en.auth.googleHint).toBeTruthy();
     expect(en.shell.apiOk).toBeTruthy();
     expect(en.shell.apiDown).toBeTruthy();
+    expect(en.activities.connectStrava).toBeTruthy();
   });
 });

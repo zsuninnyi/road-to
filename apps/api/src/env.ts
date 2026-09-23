@@ -38,3 +38,20 @@ export function getGoogleCredentials(): { clientId: string; clientSecret: string
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   };
 }
+
+export function getStravaCredentials(): { clientId: string; clientSecret: string } {
+  return {
+    clientId: process.env.STRAVA_CLIENT_ID ?? '',
+    clientSecret: process.env.STRAVA_CLIENT_SECRET ?? '',
+  };
+}
+
+export function getStravaRedirectUri(): string {
+  return (
+    process.env.STRAVA_REDIRECT_URI ?? `${getAuthBaseUrl()}/api/v1/integrations/strava/callback`
+  );
+}
+
+export function getTokenEncryptionKeySource(): string | undefined {
+  return process.env.TOKEN_ENCRYPTION_KEY;
+}

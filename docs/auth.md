@@ -215,3 +215,9 @@ If Postgres is not on `:5432`, `pnpm dev` prints a warning. `/v1/me` then return
 | `GET /api/v1/me` | `GET /v1/me` |
 | `GET /api/health` | `GET /health` |
 | `GET /docs` | Swagger UI (`GET /docs/json` for the spec) |
+| `POST /api/v1/integrations/strava/connect` | `POST /v1/integrations/strava/connect` |
+| `GET /api/v1/integrations/strava/callback` | `GET /v1/integrations/strava/callback` |
+| `GET /api/v1/integrations` | `GET /v1/integrations` |
+| `GET /api/v1/activities` | `GET /v1/activities` |
+
+Strava connect is documented in [strava.md](./strava.md). It is not a login provider; the Google session cookie still has to ride the `:5173` callback.

@@ -1,6 +1,6 @@
 import { buildApp } from './app.js';
 import { createAuth } from './auth.js';
-import { createPool } from './db/index.js';
+import { createDb, createPool } from './db/index.js';
 import { loadRootEnv } from './env.js';
 
 loadRootEnv();
@@ -9,7 +9,8 @@ const port = Number.parseInt(process.env.PORT ?? '3001', 10);
 const host = process.env.HOST ?? '127.0.0.1';
 
 const pool = createPool();
-const app = await buildApp({ auth: createAuth(pool) });
+const db = createDb(pool);
+const app = await buildApp({ auth: createAuth(pool), db });
 
 async function shutdown() {
   await app.close();

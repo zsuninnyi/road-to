@@ -13,10 +13,16 @@ export const signedInUser: MeUser = {
   units: 'metric',
 };
 
-export function stubSession(user: MeUser | null) {
+export function stubSession(
+  user: MeUser | null,
+  options: {
+    integrations?: unknown[];
+    activities?: unknown[];
+  } = {},
+) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: RequestInfo | URL) => {
+    vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/v1/me')) {
         if (!user) {
@@ -30,6 +36,27 @@ export function stubSession(user: MeUser | null) {
           ok: true,
           status: 200,
           json: async () => ({ user }),
+        };
+      }
+      if (url.includes('/v1/integrations/strava/connect')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ url: 'https://www.strava.com/oauth/authorize?client_id=test' }),
+        };
+      }
+      if (url.includes('/v1/integrations')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ integrations: options.integrations ?? [] }),
+        };
+      }
+      if (url.includes('/v1/activities')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ activities: options.activities ?? [] }),
         };
       }
       if (url.includes('/health')) {
