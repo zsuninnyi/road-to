@@ -17,6 +17,9 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     proxy: {
+      '/docs': {
+        target: 'http://127.0.0.1:3001',
+      },
       '/api/auth': {
         target: 'http://127.0.0.1:3001',
       },

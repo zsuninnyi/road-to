@@ -108,6 +108,34 @@ describe('API', () => {
     );
   });
 
+  it('GET /docs serves Swagger UI', async () => {
+    app = await buildApp({ logger: false, auth: createTestAuth() });
+    const response = await app.inject({ method: 'GET', url: '/docs' });
+
+    expect(response.statusCode).toBe(200);
+    expect(String(response.headers['content-type'])).toMatch(/html/);
+    expect(response.body).toContain('swagger-ui');
+  });
+
+  it('GET /docs/json is OpenAPI with current routes', async () => {
+    app = await buildApp({ logger: false, auth: createTestAuth() });
+    const response = await app.inject({ method: 'GET', url: '/docs/json' });
+    const spec = response.json() as {
+      info: { title: string };
+      paths: Record<string, unknown>;
+      components: { securitySchemes: { sessionCookie: { name: string } } };
+    };
+
+    expect(response.statusCode).toBe(200);
+    expect(spec.info.title).toBe('RoadTo API');
+    expect(spec.paths['/health']).toBeDefined();
+    expect(spec.paths['/v1/me']).toBeDefined();
+    expect(spec.paths['/api/auth/*']).toBeUndefined();
+    expect(spec.paths['/api/auth/sign-in/social']).toBeDefined();
+    expect(spec.paths['/api/auth/callback/google']).toBeDefined();
+    expect(spec.components.securitySchemes.sessionCookie.name).toBe('better-auth.session_token');
+  });
+
   it('matches nested Better Auth paths', async () => {
     app = await buildApp({
       logger: false,

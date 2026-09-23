@@ -20,6 +20,7 @@ Browser (localhost:5173)
   ▼
 Vite proxy
   /api/auth/*  →  Fastify :3001  (path unchanged)
+  /docs        →  Fastify :3001  (Swagger UI)
   /api/*       →  Fastify :3001  (strip /api)   e.g. /api/v1/me → /v1/me
   ▼
 Fastify
@@ -43,10 +44,11 @@ Same-origin cookies matter. Google redirects to `:5173`, not `:3001`, so the OAu
 | `apps/web/src/routes/login.tsx` | Google button; skip login if already signed in |
 | `apps/web/src/routes/app.tsx` | Gate: no session → `/login` |
 | `apps/web/src/routes/__root.tsx` | Header Sign in / Sign out |
-| `apps/web/vite.config.ts` | `/api` and `/api/auth` proxy |
+| `apps/web/vite.config.ts` | `/api`, `/api/auth`, and `/docs` proxy |
 | `apps/api/src/index.ts` | Pool + `createAuth` + `buildApp` |
 | `apps/api/src/auth.ts` | `betterAuth({ google, Kysely/pg })` |
 | `apps/api/src/auth-routes.ts` | Catch-all `GET/POST /api/auth/*` |
+| `apps/api/src/swagger.ts` | OpenAPI 3.1 + Swagger UI at `/docs` |
 | `apps/api/src/app.ts` | `GET /v1/me` |
 | `apps/api/src/env.ts` | `BETTER_AUTH_*`, Google, trusted origins |
 | `apps/api/migrations/20260923000000_auth_and_activities.ts` | Auth tables + empty `activities` |
@@ -212,3 +214,4 @@ If Postgres is not on `:5432`, `pnpm dev` prints a warning. `/v1/me` then return
 | `POST /api/auth/sign-out` | `/api/auth/sign-out` |
 | `GET /api/v1/me` | `GET /v1/me` |
 | `GET /api/health` | `GET /health` |
+| `GET /docs` | Swagger UI (`GET /docs/json` for the spec) |

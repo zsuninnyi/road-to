@@ -181,7 +181,7 @@ apps/web/
 | `/app/projects` | Create project (name goes into the URL) |
 | `/app/projects/:id?name=` | Project page; header becomes `RoadTo {name}` |
 
-Vite proxies `http://127.0.0.1:5173/api/auth/*` to Fastify as-is, and other `/api/*` by stripping `/api` (`/api/health` → `/health`, `/api/v1/me` → `/v1/me`).
+Vite proxies `http://127.0.0.1:5173/api/auth/*` to Fastify as-is, `/docs` to Swagger UI, and other `/api/*` by stripping `/api` (`/api/health` → `/health`, `/api/v1/me` → `/v1/me`).
 
 **Theming:** set `data-theme` on `<html>`. Tokens in `theme/default.css` (`--theme-canvas`, `--theme-ink`, …) are wired in `styles.css` `@theme` to utilities (`bg-canvas`, `text-ink`, `bg-accent`, `border-line`). A second theme is another `[data-theme='…']` file plus `applyTheme`.
 
@@ -205,13 +205,14 @@ apps/api/
     │   ├── index.ts           Pool + Kysely
     │   └── types.ts           Database interface
     ├── auth.ts                betterAuth (Kysely/pg) + AuthLike for tests
-    ├── auth-routes.ts         GET/POST /api/auth/*
-    ├── app.ts                 buildApp — /health, /v1/me, auth
+    ├── auth-routes.ts         GET/POST /api/auth/* (hidden from OpenAPI)
+    ├── swagger.ts             @fastify/swagger + UI at /docs
+    ├── app.ts                 buildApp — /health, /v1/me, auth, OpenAPI
     ├── app.test.ts            Fastify inject, fake auth, no listen
     └── index.ts               listen PORT (default 3001)
 ```
 
-`GET /v1/me` returns `{ user }` or 401. Health does not need a database.
+`GET /v1/me` returns `{ user }` or 401. Health does not need a database. OpenAPI JSON is `GET /docs/json`. The Better Auth catch-all is hidden; named OAuth paths are added in `transformObject`.
 
 ---
 

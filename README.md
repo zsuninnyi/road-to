@@ -36,6 +36,7 @@ corepack pnpm dev
 
 - Web: http://127.0.0.1:5173
 - API health: http://127.0.0.1:3001/health
+- OpenAPI UI: http://127.0.0.1:3001/docs (also proxied at http://127.0.0.1:5173/docs)
 - Google callback (register in Google Cloud): `http://127.0.0.1:5173/api/auth/callback/google`
 
 ```sh
