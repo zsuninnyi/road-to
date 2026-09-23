@@ -23,9 +23,11 @@ describe('sortProjectActivityList', () => {
       { id: 'easy', startedAt: '2026-03-01T08:00:00Z' },
     ];
 
-    expect(
-      sortProjectActivityList(oldestRace, 'marathon').map((activity) => activity.id),
-    ).toEqual(['marathon', 'long-run', 'easy']);
+    expect(sortProjectActivityList(oldestRace, 'marathon').map((activity) => activity.id)).toEqual([
+      'marathon',
+      'long-run',
+      'easy',
+    ]);
   });
 
   it('does not duplicate the pinned activity in the rest of the list', () => {
