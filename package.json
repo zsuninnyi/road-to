@@ -10,6 +10,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:api": "npm --prefix apps/api run dev",
     "dev:web": "npm --prefix apps/web run dev",
+    "migrate": "npm --prefix apps/api run migrate",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

@@ -16,7 +16,9 @@ describe('createApiClient', () => {
 
     await client.health();
 
-    expect(fetchFn).toHaveBeenCalledWith('http://example.test/api/health');
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/api/health', {
+      credentials: 'include',
+    });
   });
 
   it('returns health payloads', async () => {
@@ -39,5 +41,21 @@ describe('createApiClient', () => {
       status: 503,
     });
     await expect(client.health()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('returns the current user from /v1/me', async () => {
+    const user = {
+      id: 'user_1',
+      name: 'Viktor',
+      email: 'viktor@example.test',
+      image: null,
+      units: 'metric' as const,
+    };
+    const client = createApiClient({
+      baseUrl: 'http://example.test',
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ user })),
+    });
+
+    await expect(client.me()).resolves.toEqual({ user });
   });
 });

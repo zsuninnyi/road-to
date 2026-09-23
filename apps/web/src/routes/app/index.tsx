@@ -1,9 +1,7 @@
-import { createApiClient } from '@road-to/api-client';
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-
-const api = createApiClient({ baseUrl: '/api' });
+import { api } from '../../auth/session';
 
 export const Route = createFileRoute('/app/')({
   component: AppPage,

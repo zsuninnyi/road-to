@@ -16,6 +16,7 @@
     "@road-to/i18n": "workspace:*",
     "@tanstack/react-query": "^5.89.0",
     "@tanstack/react-router": "^1.131.0",
+    "better-auth": "^1.7.5",
     "i18next": "^25.5.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
