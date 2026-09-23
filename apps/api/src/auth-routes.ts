@@ -15,6 +15,9 @@ export async function registerAuthRoutes(app: FastifyInstance, auth: AuthLike): 
   app.route({
     method: ['GET', 'POST'],
     url: '/api/auth/*',
+    schema: {
+      hide: true,
+    },
     async handler(request: FastifyRequest, reply: FastifyReply) {
       const url = new URL(request.url, publicOrigin(request));
       const headers = fromNodeHeaders(request.headers);

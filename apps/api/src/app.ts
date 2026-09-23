@@ -2,6 +2,7 @@ import { fromNodeHeaders } from 'better-auth/node';
 import Fastify from 'fastify';
 import { createNullAuth, type AuthLike, type AuthUser } from './auth.js';
 import { registerAuthRoutes } from './auth-routes.js';
+import { healthRouteSchema, meRouteSchema, registerSwagger } from './swagger.js';
 
 export type AppOptions = {
   logger?: boolean;
@@ -25,12 +26,13 @@ export async function buildApp(options: AppOptions = {}) {
   });
   const auth = options.auth ?? createNullAuth();
 
+  await registerSwagger(app);
   await registerAuthRoutes(app, auth);
 
   const health = async () => ({ ok: true as const });
-  app.get('/health', health);
+  app.get('/health', { schema: healthRouteSchema }, health);
 
-  app.get('/v1/me', async (request, reply) => {
+  app.get('/v1/me', { schema: meRouteSchema }, async (request, reply) => {
     try {
       const session = await auth.api.getSession({
         headers: fromNodeHeaders(request.headers),
