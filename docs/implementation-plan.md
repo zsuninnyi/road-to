@@ -60,9 +60,11 @@ Two deployable apps from day one, plus shared TypeScript packages. The web UI ne
 | Tailwind CSS (v4, Vite plugin) | Styling, layout, and later design-token theming |
 | i18next + react-i18next | UI copy. English catalog only in v1; no hardcoded user-facing strings |
 
+**State: no Redux.** Almost everything the UI shows is server state (activities, projects, health, integrations, session). TanStack Query owns that: cache, refetch, sync-status polling, infinite lists. Filters that should be shareable or restorable live in the URL via TanStack Router. Ephemeral UI (modal open, map hover) stays in `useState`. If we later need a small amount of client-only global state (e.g. unit preference before `/v1/me` is wired), add Zustand — not Redux. Redux would duplicate Query’s cache and add boilerplate this app does not need.
+
 TanStack Start (SSR) is a later option for share-page SEO and Open Graph tags. v1 is a SPA: Fastify can serve a small HTML shell with OG tags for `/share/:token` if previews matter early.
 
-**Why Tailwind.** Utility classes keep the first screens moving without a component library lock-in, and a small `theme` (colors, type scale, spacing, radii) is enough to restyle the product later. Use `@theme` tokens from day one so “customizable later” means changing tokens, not hunting one-off hex values. Reach for a headless kit (e.g. Base UI or Ark) only when we need accessible dialogs/menus; do not adopt a heavy styled kit (MUI, Ant) on top of Tailwind.
+**Why Tailwind.** Utility classes keep the first screens moving without a component library lock-in. Named themes live under `apps/web/src/theme/`; v1 ships **`default`** (canvas, ink, accent, line, radii). Switch later by adding another `[data-theme='…']` file and calling `applyTheme`. Do not hunt one-off hex values in components.
 
 Tailwind is web CSS. React Native will not consume `className` strings unless we add NativeWind later. The portable part is the **token set** (color, space, type), not the utility markup. That matches the rest of the UI-sharing stance: domain and API client are shared; screens are platform-specific.
 
@@ -230,7 +232,9 @@ health_samples
   unique (provider, external_id)
 
 projects
-  id, user_id, name, slug, description, archived_at, created_at
+  id, user_id, name, slug, description
+  pinned_activity_id       -- nullable FK activities; the goal race / event
+  archived_at, created_at
 
 project_rules
   id, project_id
@@ -415,6 +419,7 @@ POST   /v1/projects
 GET    /v1/projects/:id
 PATCH  /v1/projects/:id
 DELETE /v1/projects/:id
+PUT    /v1/projects/:id/pin                    { activityId } or null to clear
 PUT    /v1/projects/:id/rules
 POST   /v1/projects/:id/activities             manual add
 DELETE /v1/projects/:id/activities/:activityId sticky remove
@@ -509,10 +514,11 @@ Build in vertical slices that are demoable. Do not connect four providers before
 ### Phase 3 — Projects
 
 - CRUD projects, manual assign, date-window + sport rules, sticky exclude.
+- One pinned goal activity per project; project list sorts pin first, then newest.
 - Project-scoped list.
 - Re-run rules after import.
 
-**Exit:** “Road to Marathon” auto-picks 2026-01-01..2026-04-30 runs.
+**Exit:** “Road to Marathon” auto-picks 2026-01-01..2026-04-30 runs, and the race can be pinned to the top of the list.
 
 ### Phase 4 — Sharing
 
@@ -556,11 +562,14 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 ## 9. Testing strategy
 
+**Runner:** Vitest for unit and component tests (`pnpm test`). Playwright later for logged-out share flows.
+
 | Layer | What |
 | --- | --- |
-| `packages/domain` | Dedupe fixtures, field-merge/gap-fill, auto-assign + sticky exclude, share visibility filtering, aggregation math |
-| API integration | Testcontainers or docker Postgres: OAuth mocked, webhook → job → rows |
-| Web | Component tests for list/detail; Playwright for login + share as anonymous |
+| `packages/domain` | Dedupe fixtures, field-merge/gap-fill, auto-assign + sticky exclude, pinned project list order, share visibility filtering, aggregation math |
+| `packages/api-client` | Request errors, URL handling, mocked `fetch` |
+| API | Fastify `inject` for HTTP handlers; Testcontainers/Postgres when Kysely lands |
+| Web | Component tests (Testing Library + jsdom); Playwright for login + share as anonymous |
 | Providers | Contract tests with recorded fixtures (never live tokens in CI) |
 
 Golden fixtures: two Strava/Garmin copies of the same run; a treadmill run vs an outdoor run at a similar time (must not merge); a run the user removed from a project that must not reappear after sync.
@@ -620,6 +629,7 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 | i18n | i18next, `packages/i18n`, English only in v1 | Adding a second locale |
 | Product posture | Personal first; still brand and attribute sources | Public launch / App Store |
 | Auth | Better Auth, Google then Apple | If native token story is awkward |
+| Web client state | TanStack Query + URL + `useState`; no Redux | A real client-only store is needed → Zustand |
 | Web styling | Tailwind CSS v4 + `@theme` tokens | Mobile starts and NativeWind is worth it |
 | Local Node | Host `pnpm`, Docker for Postgres only | Team onboarding is painful without a full Compose profile |
 | Deploy | Multi-stage Docker images for api/web/worker | Host offers a better native Node buildpack *and* we drop containers everywhere |

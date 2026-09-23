@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+@import './theme/default.css';
+
+@theme {
+  --font-sans: var(--theme-font-sans);
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-ink: var(--theme-ink);
+  --color-muted: var(--theme-muted);
+  --color-accent: var(--theme-accent);
+  --color-accent-fg: var(--theme-accent-fg);
+  --color-line: var(--theme-line);
+  --color-danger: var(--theme-danger);
+  --color-ring: var(--theme-ring);
+  --radius-sm: var(--theme-radius-sm);
+  --radius-md: var(--theme-radius-md);
+  --radius-lg: var(--theme-radius-lg);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply m-0 bg-canvas font-sans text-ink;
+  }
+}

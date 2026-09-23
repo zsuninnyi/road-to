@@ -1,0 +1,15 @@
+[data-theme='default'] {
+  --theme-font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --theme-canvas: oklch(0.985 0.004 90);
+  --theme-surface: oklch(0.995 0.002 90);
+  --theme-ink: oklch(0.24 0.02 50);
+  --theme-muted: oklch(0.48 0.02 50);
+  --theme-accent: oklch(0.45 0.08 175);
+  --theme-accent-fg: oklch(0.99 0.01 175);
+  --theme-line: oklch(0.9 0.01 90);
+  --theme-danger: oklch(0.55 0.16 25);
+  --theme-ring: oklch(0.45 0.08 175);
+  --theme-radius-sm: 0.25rem;
+  --theme-radius-md: 0.375rem;
+  --theme-radius-lg: 0.5rem;
+}

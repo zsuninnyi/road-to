@@ -1,0 +1,28 @@
+{
+  "appName": "RoadTo",
+  "tagline": "Your training, in one place.",
+  "nav": {
+    "activities": "Activities",
+    "projects": "Projects",
+    "settings": "Settings"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signInWithGoogle": "Sign in with Google",
+    "signOut": "Sign out",
+    "comingSoon": "Google sign-in will be available in the next step."
+  },
+  "shell": {
+    "emptyTitle": "Welcome",
+    "emptyBody": "Connect a training account later to see your activities here.",
+    "apiOk": "API connected",
+    "apiDown": "API unreachable"
+  },
+  "projects": {
+    "title": "Projects",
+    "nameLabel": "Project name",
+    "namePlaceholder": "e.g. Marathon",
+    "create": "Create project",
+    "openHint": "Create a project to focus the app on that goal."
+  }
+}
