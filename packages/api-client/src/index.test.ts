@@ -58,4 +58,33 @@ describe('createApiClient', () => {
 
     await expect(client.me()).resolves.toEqual({ user });
   });
+
+  it('lists integrations and activities', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ integrations: [] }))
+      .mockResolvedValueOnce(jsonResponse({ activities: [] }));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+
+    await expect(client.integrations()).resolves.toEqual({ integrations: [] });
+    await expect(client.activities()).resolves.toEqual({ activities: [] });
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/integrations', {
+      credentials: 'include',
+    });
+  });
+
+  it('posts Strava connect', async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ url: 'https://www.strava.com/oauth/authorize' }));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+
+    await expect(client.connectStrava()).resolves.toEqual({
+      url: 'https://www.strava.com/oauth/authorize',
+    });
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/integrations/strava/connect', {
+      credentials: 'include',
+      method: 'POST',
+    });
+  });
 });
