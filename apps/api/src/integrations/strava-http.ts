@@ -32,20 +32,18 @@ type TokenJson = {
   athlete?: { id?: number };
 };
 
-function parseToken(payload: TokenJson): StravaTokenSet {
-  if (
-    !payload.access_token ||
-    !payload.refresh_token ||
-    !payload.expires_at ||
-    !payload.athlete?.id
-  ) {
+function parseToken(payload: TokenJson, requireAthlete: boolean): StravaTokenSet {
+  if (!payload.access_token || !payload.refresh_token || !payload.expires_at) {
+    throw new StravaHttpError(502, 'Unexpected Strava token response');
+  }
+  if (requireAthlete && !payload.athlete?.id) {
     throw new StravaHttpError(502, 'Unexpected Strava token response');
   }
   return {
     accessToken: payload.access_token,
     refreshToken: payload.refresh_token,
     expiresAt: new Date(payload.expires_at * 1000),
-    athleteId: String(payload.athlete.id),
+    athleteId: payload.athlete?.id ? String(payload.athlete.id) : '',
   };
 }
 
@@ -56,7 +54,10 @@ export function createStravaHttpClient(options: {
 }): StravaClient {
   const fetchFn = options.fetchFn ?? globalThis.fetch;
 
-  async function tokenRequest(body: Record<string, string>): Promise<StravaTokenSet> {
+  async function tokenRequest(
+    body: Record<string, string>,
+    requireAthlete: boolean,
+  ): Promise<StravaTokenSet> {
     const response = await fetchFn('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -70,15 +71,15 @@ export function createStravaHttpClient(options: {
     if (!response.ok) {
       throw new StravaHttpError(response.status, 'Strava token request failed');
     }
-    return parseToken(json);
+    return parseToken(json, requireAthlete);
   }
 
   return {
     exchangeCode(code) {
-      return tokenRequest({ code, grant_type: 'authorization_code' });
+      return tokenRequest({ code, grant_type: 'authorization_code' }, true);
     },
     refreshAccessToken(refreshToken) {
-      return tokenRequest({ refresh_token: refreshToken, grant_type: 'refresh_token' });
+      return tokenRequest({ refresh_token: refreshToken, grant_type: 'refresh_token' }, false);
     },
     async listActivities(accessToken, params) {
       const url = new URL('https://www.strava.com/api/v3/athlete/activities');

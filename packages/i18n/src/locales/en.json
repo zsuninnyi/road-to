@@ -25,6 +25,7 @@
     "importHint": "Imports the last 30 days. A full backfill comes later.",
     "empty": "No activities from the last month yet.",
     "resync": "Import last month again",
+    "resyncError": "Could not import from Strava. Try again.",
     "connectError": "Strava is not configured on the API.",
     "denied": "Strava connect was cancelled.",
     "callbackError": "Could not connect Strava. Try again."

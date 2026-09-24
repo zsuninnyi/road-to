@@ -78,6 +78,9 @@ export function AppPage() {
       {connectMutation.isError ? (
         <p className="mt-4 text-sm text-danger">{t('activities.connectError')}</p>
       ) : null}
+      {resyncMutation.isError ? (
+        <p className="mt-4 text-sm text-danger">{t('activities.resyncError')}</p>
+      ) : null}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         {stravaIntegration ? (

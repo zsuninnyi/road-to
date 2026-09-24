@@ -168,7 +168,7 @@ GET https://www.strava.com/api/v3/athlete/activities
   &per_page=100
 ```
 
-Paginate until a page is empty or shorter than 100. Access token is decrypted from `integrations`. If `expires_at` is within 60 seconds, Fastify refreshes first (`grant_type=refresh_token`) and writes new encrypted tokens.
+Paginate until a page is empty or shorter than 100. Access token is decrypted from `integrations`. If `expires_at` is within 60 seconds, Fastify refreshes first (`grant_type=refresh_token`) and writes new encrypted tokens. Strava’s refresh JSON does **not** include `athlete`; only the authorization-code exchange does.
 
 Each summary JSON is:
 

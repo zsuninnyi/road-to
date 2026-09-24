@@ -72,6 +72,7 @@ async function sendServiceError(reply: FastifyReply, error: unknown): Promise<un
   if (error instanceof IntegrationNotFoundError) {
     return reply.status(404).send({ error: 'Not found' });
   }
+  reply.log.error(error);
   return reply.status(503).send({ error: 'Service unavailable' });
 }
 

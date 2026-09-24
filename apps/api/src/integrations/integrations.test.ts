@@ -37,7 +37,18 @@ const sampleActivity = {
   map: { summary_polyline: '_p~iF~ps|U' },
 };
 
-function createFakeStrava(activities: unknown[] = [sampleActivity]): StravaClient {
+function createFakeStrava(
+  activities: unknown[] = [sampleActivity],
+  options: {
+    expiresAt?: Date;
+    refresh?: () => Promise<{
+      accessToken: string;
+      refreshToken: string;
+      expiresAt: Date;
+      athleteId: string;
+    }>;
+  } = {},
+): StravaClient {
   return {
     exchangeCode: async (code) => {
       if (code !== 'ok-code') {
@@ -46,12 +57,15 @@ function createFakeStrava(activities: unknown[] = [sampleActivity]): StravaClien
       return {
         accessToken: 'access',
         refreshToken: 'refresh',
-        expiresAt: new Date('2026-09-23T18:00:00Z'),
+        expiresAt: options.expiresAt ?? new Date('2026-09-23T18:00:00Z'),
         athleteId: '42',
       };
     },
     refreshAccessToken: async () => {
-      throw new Error('refresh not used');
+      if (!options.refresh) {
+        throw new Error('refresh not used');
+      }
+      return options.refresh();
     },
     listActivities: async () => activities,
   };
@@ -159,6 +173,58 @@ describe('Strava integrations', () => {
         },
       ],
     });
+  });
+
+  it('resyncs the last month', async () => {
+    const server = await build();
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const id = (listed.json() as { integrations: { id: string }[] }).integrations[0]?.id;
+    const resync = await server.inject({ method: 'POST', url: `/v1/integrations/${id}/resync` });
+
+    expect(resync.statusCode).toBe(200);
+    expect(resync.json()).toEqual({ imported: 1 });
+  });
+
+  it('refreshes an expired access token before import', async () => {
+    let refreshed = false;
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        expiresAt: new Date('2026-09-23T11:00:00Z'),
+        refresh: async () => {
+          refreshed = true;
+          return {
+            accessToken: 'access-2',
+            refreshToken: 'refresh-2',
+            expiresAt: new Date('2026-09-24T12:00:00Z'),
+            athleteId: '',
+          };
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    const callback = await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    expect(callback.statusCode).toBe(302);
+    expect(callback.headers.location).toBe('http://127.0.0.1:5173/app?strava=connected');
+    expect(refreshed).toBe(true);
   });
 
   it('returns 503 when Strava credentials are missing', async () => {

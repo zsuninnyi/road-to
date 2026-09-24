@@ -7,13 +7,14 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authClient } from '../auth/client';
 import { meQueryKey, meQueryOptions } from '../auth/session';
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+type AppQueryClient = ReturnType<typeof useQueryClient>;
+
+export const Route = createRootRouteWithContext<{ queryClient: AppQueryClient }>()({
   component: RootLayout,
 });
 
