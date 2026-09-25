@@ -1,12 +1,22 @@
 import {
+  asJsonRecord,
+  isHydratedStravaPayload,
   normalizeStravaSummary,
+  parseStravaStreams,
   parseStravaSummary,
   stravaBackfillAfterUnix,
+  trimStravaDetail,
 } from '@road-to/domain';
 import { decryptSecret, encryptSecret } from '../crypto/tokens.js';
 import { createOAuthState, readOAuthState } from './oauth-state.js';
 import { StravaHttpError, type StravaClient } from './strava-http.js';
-import type { IntegrationRepository, PublicActivity, PublicIntegration } from './types.js';
+import type {
+  ActivityRecord,
+  IntegrationRepository,
+  PublicActivity,
+  PublicActivityDetail,
+  PublicIntegration,
+} from './types.js';
 
 export class StravaNotConfiguredError extends Error {
   constructor() {
@@ -19,6 +29,13 @@ export class IntegrationNotFoundError extends Error {
   constructor() {
     super('Integration not found');
     this.name = 'IntegrationNotFoundError';
+  }
+}
+
+export class ActivityNotFoundError extends Error {
+  constructor() {
+    super('Activity not found');
+    this.name = 'ActivityNotFoundError';
   }
 }
 
@@ -42,6 +59,7 @@ export type IntegrationService = {
   }): Promise<{ location: string }>;
   resync(userId: string, integrationId: string): Promise<{ imported: number }>;
   listActivities(userId: string): Promise<PublicActivity[]>;
+  getActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
 };
 
 function toPublic(row: {
@@ -64,6 +82,31 @@ function appRedirect(webOrigin: string, strava: string): { location: string } {
   const url = new URL('/app', webOrigin);
   url.searchParams.set('strava', strava);
   return { location: url.toString() };
+}
+
+function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
+  const payload = asJsonRecord(row.payload);
+  const hydrated = isHydratedStravaPayload(payload);
+  return {
+    id: row.id,
+    sport: row.sport,
+    title: row.title,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    timezone: row.timezone,
+    distanceM: row.distanceM,
+    movingTimeS: row.movingTimeS,
+    elapsedTimeS: row.elapsedTimeS,
+    elevationGainM: row.elevationGainM,
+    avgHr: row.avgHr,
+    maxHr: row.maxHr,
+    avgSpeedMps: row.avgSpeedMps,
+    calories: row.calories,
+    mapPolyline: row.mapPolyline,
+    sources: [{ provider: 'strava' }],
+    hydrated,
+    streams: hydrated ? parseStravaStreams(payload.streams) : null,
+  };
 }
 
 export function createIntegrationService(options: {
@@ -214,6 +257,39 @@ export function createIntegrationService(options: {
     async listActivities(userId) {
       return options.repo.listActivities(userId);
     },
+    async getActivity(userId, activityId) {
+      const row = await options.repo.getActivityById(userId, activityId);
+      if (!row) {
+        throw new ActivityNotFoundError();
+      }
+      if (isHydratedStravaPayload(asJsonRecord(row.payload)) || !options.strava) {
+        return toActivityDetail(row);
+      }
+      const integration = await options.repo.getById(userId, row.integrationId);
+      if (!integration) {
+        throw new IntegrationNotFoundError();
+      }
+      const accessToken = await validAccessToken(integration);
+      const activity = await options.strava.getActivity(accessToken, row.externalId);
+      const streams = await options.strava.getStreams(accessToken, row.externalId);
+      const parsed = parseStravaSummary(activity);
+      const normalized = parsed ? normalizeStravaSummary(parsed) : null;
+      if (!normalized) {
+        return toActivityDetail(row);
+      }
+      const streamDto = parseStravaStreams(streams);
+      await options.repo.upsertStravaActivity({
+        userId,
+        integrationId: row.integrationId,
+        normalized: {
+          ...normalized,
+          hasGps: normalized.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
+        },
+        payload: { activity: trimStravaDetail(activity), streams },
+      });
+      const updated = await options.repo.getActivityById(userId, activityId);
+      return toActivityDetail(updated ?? row);
+    },
   };
 }
 
@@ -227,5 +303,6 @@ export function createUnavailableIntegrationService(): IntegrationService {
     handleCallback: async () => ({ location: '/' }),
     resync: fail,
     listActivities: fail,
+    getActivity: fail,
   };
 }

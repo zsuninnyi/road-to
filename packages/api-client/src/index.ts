@@ -51,6 +51,22 @@ export type Activity = {
   sources: Array<{ provider: 'strava' }>;
 };
 
+export type ActivityStreams = {
+  latlng: number[][] | null;
+  timeS: number[] | null;
+  altitudeM: number[] | null;
+  heartrate: number[] | null;
+};
+
+export type ActivityDetail = Activity & {
+  timezone: string | null;
+  maxHr: number | null;
+  avgSpeedMps: number | null;
+  calories: number | null;
+  hydrated: boolean;
+  streams: ActivityStreams | null;
+};
+
 export type ActivitiesResponse = {
   activities: Activity[];
 };
@@ -106,6 +122,9 @@ export function createApiClient(options: ApiClientOptions) {
     },
     activities(): Promise<ActivitiesResponse> {
       return request<ActivitiesResponse>('/v1/activities');
+    },
+    activity(id: string): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}`);
     },
   };
 }

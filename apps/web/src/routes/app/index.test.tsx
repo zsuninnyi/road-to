@@ -58,6 +58,10 @@ describe('AppPage', () => {
     await renderRoute('/app');
 
     expect(await screen.findByText('Morning Run')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Morning Run' })).toHaveAttribute(
+      'href',
+      '/app/activities/act_1',
+    );
     expect(screen.getByText('10.2 km · 58:20')).toBeInTheDocument();
     expect(screen.getByText('Strava connected')).toBeInTheDocument();
   });

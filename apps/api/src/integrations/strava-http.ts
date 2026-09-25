@@ -13,6 +13,8 @@ export type StravaClient = {
     accessToken: string,
     params: { afterUnix: number; page: number; perPage: number },
   ): Promise<unknown[]>;
+  getActivity(accessToken: string, id: string): Promise<unknown>;
+  getStreams(accessToken: string, id: string): Promise<unknown>;
 };
 
 export class StravaHttpError extends Error {
@@ -94,6 +96,27 @@ export function createStravaHttpClient(options: {
       }
       const json: unknown = await response.json();
       return Array.isArray(json) ? json : [];
+    },
+    async getActivity(accessToken, id) {
+      const response = await fetchFn(`https://www.strava.com/api/v3/activities/${id}`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        throw new StravaHttpError(response.status, 'Strava activity failed');
+      }
+      return response.json() as Promise<unknown>;
+    },
+    async getStreams(accessToken, id) {
+      const url = new URL(`https://www.strava.com/api/v3/activities/${id}/streams`);
+      url.searchParams.set('keys', 'latlng,time,altitude,heartrate');
+      url.searchParams.set('key_by_type', 'true');
+      const response = await fetchFn(url, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        throw new StravaHttpError(response.status, 'Strava streams failed');
+      }
+      return response.json() as Promise<unknown>;
     },
   };
 }

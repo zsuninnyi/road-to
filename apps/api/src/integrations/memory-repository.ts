@@ -1,29 +1,58 @@
 import { randomUUID } from 'node:crypto';
-import type { IntegrationRecord, IntegrationRepository, UpsertIntegrationInput } from './types.js';
+import { isHydratedStravaPayload, type Sport } from '@road-to/domain';
+import type {
+  ActivityRecord,
+  IntegrationRecord,
+  IntegrationRepository,
+  PublicActivity,
+  UpsertIntegrationInput,
+} from './types.js';
 
 type StoredActivity = {
   id: string;
   userId: string;
   titleOverridden: boolean;
-  sport: import('@road-to/domain').Sport;
+  sport: Sport;
   title: string;
   startedAt: string;
   endedAt: string;
+  timezone: string | null;
   distanceM: number | null;
   movingTimeS: number | null;
   elapsedTimeS: number | null;
   elevationGainM: number | null;
   avgHr: number | null;
+  maxHr: number | null;
+  avgSpeedMps: number | null;
+  calories: number | null;
   mapPolyline: string | null;
-  sources: Array<{ provider: 'strava' }>;
 };
 
 type StoredSource = {
   id: string;
   activityId: string;
+  integrationId: string;
   provider: 'strava';
   externalId: string;
+  payload: Record<string, unknown>;
 };
+
+function toPublic(row: StoredActivity): PublicActivity {
+  return {
+    id: row.id,
+    sport: row.sport,
+    title: row.title,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    distanceM: row.distanceM,
+    movingTimeS: row.movingTimeS,
+    elapsedTimeS: row.elapsedTimeS,
+    elevationGainM: row.elevationGainM,
+    avgHr: row.avgHr,
+    mapPolyline: row.mapPolyline,
+    sources: [{ provider: 'strava' }],
+  };
+}
 
 export function createMemoryIntegrationRepository(): IntegrationRepository {
   const integrations = new Map<string, IntegrationRecord>();
@@ -36,6 +65,10 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
       expiresAt: new Date(row.expiresAt),
       lastSyncAt: row.lastSyncAt ? new Date(row.lastSyncAt) : null,
     };
+  }
+
+  function sourceForActivity(activityId: string): StoredSource | undefined {
+    return [...sources.values()].find((item) => item.activityId === activityId);
   }
 
   return {
@@ -92,6 +125,13 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
     async upsertStravaActivity(input) {
       const key = `strava:${input.normalized.externalId}`;
       const existingSource = sources.get(key);
+      if (
+        existingSource &&
+        isHydratedStravaPayload(existingSource.payload) &&
+        !isHydratedStravaPayload(input.payload)
+      ) {
+        return;
+      }
       const existingActivity = existingSource
         ? activities.get(existingSource.activityId)
         : undefined;
@@ -110,26 +150,45 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         titleOverridden: existingActivity?.titleOverridden ?? false,
         startedAt: input.normalized.startedAt,
         endedAt: input.normalized.endedAt,
+        timezone: input.normalized.timezone,
         distanceM: input.normalized.distanceM,
         movingTimeS: input.normalized.movingTimeS,
         elapsedTimeS: input.normalized.elapsedTimeS,
         elevationGainM: input.normalized.elevationGainM,
         avgHr: input.normalized.avgHr,
+        maxHr: input.normalized.maxHr,
+        avgSpeedMps: input.normalized.avgSpeedMps,
+        calories: input.normalized.calories,
         mapPolyline: input.normalized.mapPolyline,
-        sources: [{ provider: 'strava' }],
       });
       sources.set(key, {
         id: sourceId,
         activityId,
+        integrationId: input.integrationId,
         provider: 'strava',
         externalId: input.normalized.externalId,
+        payload: input.payload,
       });
     },
     async listActivities(userId) {
       return [...activities.values()]
         .filter((row) => row.userId === userId)
         .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1))
-        .map(({ userId: _userId, titleOverridden: _overridden, ...row }) => row);
+        .map(toPublic);
+    },
+    async getActivityById(userId, id) {
+      const row = activities.get(id);
+      const source = sourceForActivity(id);
+      if (!row || row.userId !== userId || !source) {
+        return null;
+      }
+      const record: ActivityRecord = {
+        ...row,
+        integrationId: source.integrationId,
+        externalId: source.externalId,
+        payload: source.payload,
+      };
+      return record;
     },
   };
 }

@@ -18,6 +18,7 @@ export function stubSession(
   options: {
     integrations?: unknown[];
     activities?: unknown[];
+    activity?: unknown;
   } = {},
 ) {
   vi.stubGlobal(
@@ -50,6 +51,20 @@ export function stubSession(
           ok: true,
           status: 200,
           json: async () => ({ integrations: options.integrations ?? [] }),
+        };
+      }
+      if (/\/v1\/activities\/[^/?]+/.test(url)) {
+        if (options.activity) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: 'Not found' }),
         };
       }
       if (url.includes('/v1/activities')) {

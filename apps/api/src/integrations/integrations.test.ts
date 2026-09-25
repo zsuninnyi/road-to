@@ -47,6 +47,8 @@ function createFakeStrava(
       expiresAt: Date;
       athleteId: string;
     }>;
+    onGetActivity?: () => void;
+    onGetStreams?: () => void;
   } = {},
 ): StravaClient {
   return {
@@ -68,6 +70,33 @@ function createFakeStrava(
       return options.refresh();
     },
     listActivities: async () => activities,
+    getActivity: async (_token, id) => {
+      options.onGetActivity?.();
+      return {
+        ...sampleActivity,
+        id: Number(id),
+        calories: 640,
+        average_heartrate: 148,
+        max_heartrate: 171,
+        average_speed: 2.91,
+        total_elevation_gain: 80,
+        map: { summary_polyline: '_p~iF~ps|U', polyline: '_p~iF~ps|U' },
+      };
+    },
+    getStreams: async () => {
+      options.onGetStreams?.();
+      return {
+        latlng: {
+          data: [
+            [47.5, 19.04],
+            [47.51, 19.05],
+          ],
+        },
+        time: { data: [0, 10] },
+        altitude: { data: [110, 112] },
+        heartrate: { data: [140, 145] },
+      };
+    },
   };
 }
 
@@ -225,6 +254,79 @@ describe('Strava integrations', () => {
     expect(callback.statusCode).toBe(302);
     expect(callback.headers.location).toBe('http://127.0.0.1:5173/app?strava=connected');
     expect(refreshed).toBe(true);
+  });
+
+  it('hydrates activity detail from Strava once and then reads the database', async () => {
+    let activityCalls = 0;
+    let streamCalls = 0;
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onGetActivity: () => {
+          activityCalls += 1;
+        },
+        onGetStreams: () => {
+          streamCalls += 1;
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const first = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({
+      id,
+      title: 'Morning Run',
+      calories: 640,
+      maxHr: 171,
+      hydrated: true,
+      streams: {
+        latlng: [
+          [47.5, 19.04],
+          [47.51, 19.05],
+        ],
+        timeS: [0, 10],
+        altitudeM: [110, 112],
+        heartrate: [140, 145],
+      },
+    });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    const second = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ hydrated: true, calories: 640 });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+    await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+  });
+
+  it('returns 404 for an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'GET',
+      url: '/v1/activities/missing',
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it('returns 503 when Strava credentials are missing', async () => {

@@ -28,7 +28,20 @@
     "resyncError": "Could not import from Strava. Try again.",
     "connectError": "Strava is not configured on the API.",
     "denied": "Strava connect was cancelled.",
-    "callbackError": "Could not connect Strava. Try again."
+    "callbackError": "Could not connect Strava. Try again.",
+    "back": "All activities",
+    "sourceStrava": "Strava",
+    "distance": "Distance",
+    "duration": "Moving time",
+    "avgHr": "Avg HR",
+    "maxHr": "Max HR",
+    "elevation": "Elevation",
+    "calories": "Calories",
+    "speed": "Speed",
+    "loadError": "Could not load this activity.",
+    "noMap": "No GPS track for this activity.",
+    "elevationChart": "Elevation",
+    "hrChart": "Heart rate"
   },
   "projects": {
     "title": "Projects",

@@ -1,7 +1,7 @@
 import { formatDistanceMeters, formatDurationSeconds } from '@road-to/domain';
 import type { Activity, ConnectStravaResponse, Integration } from '@road-to/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { api, meQueryOptions } from '../../auth/session';
 
@@ -117,7 +117,15 @@ export function AppPage() {
               className="flex flex-wrap items-baseline justify-between gap-2 py-3"
             >
               <div>
-                <p className="font-medium">{activity.title}</p>
+                <p className="font-medium">
+                  <Link
+                    to="/app/activities/$activityId"
+                    params={{ activityId: activity.id }}
+                    className="hover:text-accent"
+                  >
+                    {activity.title}
+                  </Link>
+                </p>
                 <p className="text-sm text-muted">
                   <time dateTime={activity.startedAt}>
                     {new Intl.DateTimeFormat('en', {

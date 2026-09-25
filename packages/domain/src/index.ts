@@ -16,13 +16,26 @@ export function formatBrandTitle(brand: string, projectName?: string | null): st
 
 export { sortProjectActivityList, type ProjectListActivity } from './project-list.js';
 export { sports, mapStravaSport, type Sport } from './sports.js';
-export { formatDistanceMeters, formatDurationSeconds, type Units } from './units.js';
+export {
+  formatCalories,
+  formatDistanceMeters,
+  formatDurationSeconds,
+  formatSpeedMps,
+  type Units,
+} from './units.js';
+export { decodePolyline } from './polyline.js';
 export {
   activityFingerprint,
+  asJsonRecord,
+  isHydratedStravaPayload,
   normalizeStravaSummary,
+  parseStravaStreams,
   parseStravaSummary,
   stravaBackfillAfterUnix,
   stravaInitialBackfillDays,
+  trimStravaDetail,
+  type ActivityStreamsDto,
+  type HydratedStravaPayload,
   type NormalizedProviderActivity,
   type StravaSummaryActivity,
 } from './strava.js';

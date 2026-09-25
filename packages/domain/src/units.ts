@@ -15,6 +15,17 @@ export function formatDistanceMeters(meters: number, units: Units): string {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
+export function formatSpeedMps(mps: number, units: Units): string {
+  if (units === 'imperial') {
+    return `${(mps * 2.236936).toFixed(1)} mph`;
+  }
+  return `${(mps * 3.6).toFixed(1)} km/h`;
+}
+
+export function formatCalories(kcal: number): string {
+  return `${Math.round(kcal)} kcal`;
+}
+
 export function formatDurationSeconds(seconds: number): string {
   const safe = Math.max(0, Math.round(seconds));
   const hours = Math.floor(safe / 3600);

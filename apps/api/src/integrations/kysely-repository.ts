@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { activityFingerprint, type NormalizedProviderActivity } from '@road-to/domain';
+import {
+  activityFingerprint,
+  asJsonRecord,
+  isHydratedStravaPayload,
+  type NormalizedProviderActivity,
+} from '@road-to/domain';
 import type { Kysely } from 'kysely';
 import type { Database, IntegrationStatus } from '../db/types.js';
 import type {
+  ActivityRecord,
   IntegrationRecord,
   IntegrationRepository,
   PublicActivity,
@@ -172,12 +178,21 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           .select([
             'activity_sources.id as source_id',
             'activity_sources.activity_id as activity_id',
+            'activity_sources.payload as payload',
             'activities.title_overridden as title_overridden',
             'activities.title as title',
           ])
           .where('activity_sources.provider', '=', 'strava')
           .where('activity_sources.external_id', '=', input.normalized.externalId)
           .executeTakeFirst();
+
+        if (
+          existing &&
+          isHydratedStravaPayload(asJsonRecord(existing.payload)) &&
+          !isHydratedStravaPayload(input.payload)
+        ) {
+          return;
+        }
 
         const sourceId = existing?.source_id ?? randomUUID();
         const activityId = existing?.activity_id ?? randomUUID();
@@ -264,6 +279,63 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
         sources: [{ provider: 'strava' as const }],
       }));
       return result;
+    },
+    async getActivityById(userId, id) {
+      const row = await db
+        .selectFrom('activities')
+        .innerJoin('activity_sources', 'activity_sources.activity_id', 'activities.id')
+        .select([
+          'activities.id as id',
+          'activities.user_id as user_id',
+          'activities.title_overridden as title_overridden',
+          'activities.sport as sport',
+          'activities.title as title',
+          'activities.started_at as started_at',
+          'activities.ended_at as ended_at',
+          'activities.timezone as timezone',
+          'activities.distance_m as distance_m',
+          'activities.moving_time_s as moving_time_s',
+          'activities.elapsed_time_s as elapsed_time_s',
+          'activities.elevation_gain_m as elevation_gain_m',
+          'activities.avg_hr as avg_hr',
+          'activities.max_hr as max_hr',
+          'activities.avg_speed_mps as avg_speed_mps',
+          'activities.calories as calories',
+          'activities.map_polyline as map_polyline',
+          'activity_sources.integration_id as integration_id',
+          'activity_sources.external_id as external_id',
+          'activity_sources.payload as payload',
+        ])
+        .where('activities.id', '=', id)
+        .where('activities.user_id', '=', userId)
+        .where('activities.deleted_at', 'is', null)
+        .executeTakeFirst();
+      if (!row) {
+        return null;
+      }
+      const record: ActivityRecord = {
+        id: row.id,
+        userId: row.user_id,
+        titleOverridden: row.title_overridden,
+        sport: row.sport,
+        title: row.title,
+        startedAt: new Date(row.started_at).toISOString(),
+        endedAt: new Date(row.ended_at).toISOString(),
+        timezone: row.timezone,
+        distanceM: row.distance_m,
+        movingTimeS: row.moving_time_s,
+        elapsedTimeS: row.elapsed_time_s,
+        elevationGainM: row.elevation_gain_m,
+        avgHr: row.avg_hr,
+        maxHr: row.max_hr,
+        avgSpeedMps: row.avg_speed_mps,
+        calories: row.calories,
+        mapPolyline: row.map_polyline,
+        integrationId: row.integration_id,
+        externalId: row.external_id,
+        payload: row.payload,
+      };
+      return record;
     },
   };
 }

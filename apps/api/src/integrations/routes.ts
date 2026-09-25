@@ -4,6 +4,7 @@ import type { AuthLike } from '../auth.js';
 import { requireUser } from '../session.js';
 import { errorSchema } from '../swagger.js';
 import {
+  ActivityNotFoundError,
   IntegrationNotFoundError,
   StravaNotConfiguredError,
   type IntegrationService,
@@ -65,11 +66,47 @@ const activitySchema = {
   },
 } as const;
 
+const activityDetailSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    ...activitySchema.required,
+    'timezone',
+    'maxHr',
+    'avgSpeedMps',
+    'calories',
+    'hydrated',
+    'streams',
+  ],
+  properties: {
+    ...activitySchema.properties,
+    timezone: { type: ['string', 'null'] },
+    maxHr: { type: ['integer', 'null'] },
+    avgSpeedMps: { type: ['number', 'null'] },
+    calories: { type: ['number', 'null'] },
+    hydrated: { type: 'boolean' },
+    streams: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['latlng', 'timeS', 'altitudeM', 'heartrate'],
+      properties: {
+        latlng: {
+          type: ['array', 'null'],
+          items: { type: 'array', items: { type: 'number' } },
+        },
+        timeS: { type: ['array', 'null'], items: { type: 'number' } },
+        altitudeM: { type: ['array', 'null'], items: { type: 'number' } },
+        heartrate: { type: ['array', 'null'], items: { type: 'number' } },
+      },
+    },
+  },
+} as const;
+
 async function sendServiceError(reply: FastifyReply, error: unknown): Promise<unknown> {
   if (error instanceof StravaNotConfiguredError) {
     return reply.status(503).send({ error: 'Strava is not configured' });
   }
-  if (error instanceof IntegrationNotFoundError) {
+  if (error instanceof IntegrationNotFoundError || error instanceof ActivityNotFoundError) {
     return reply.status(404).send({ error: 'Not found' });
   }
   reply.log.error(error);
@@ -255,6 +292,40 @@ export async function registerIntegrationRoutes(
       }
       try {
         return { activities: await integrations.listActivities(user.id) };
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.get(
+    '/v1/activities/:id',
+    {
+      schema: {
+        tags: ['activities'],
+        summary: 'Activity detail. Hydrates from Strava once, then reads Postgres.',
+        security: sessionSecurity,
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: activityDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id } = request.params as { id: string };
+      try {
+        return await integrations.getActivity(user.id, id);
       } catch (error) {
         return sendServiceError(reply, error);
       }
