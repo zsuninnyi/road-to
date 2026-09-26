@@ -20,6 +20,7 @@ export {
   formatCalories,
   formatDistanceMeters,
   formatDurationSeconds,
+  formatPace,
   formatSpeedMps,
   type Units,
 } from './units.js';

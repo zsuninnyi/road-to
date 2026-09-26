@@ -41,7 +41,8 @@ describe('ActivityDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Morning Run' })).toBeInTheDocument();
     expect(screen.getByText('Strava')).toBeInTheDocument();
-    expect(screen.getByText('640 kcal')).toBeInTheDocument();
+    expect(screen.getByText('5:43 /km')).toBeInTheDocument();
+    expect(screen.getByText('Pace')).toBeInTheDocument();
     expect(screen.getByText('171 bpm')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Heart rate' })).toBeInTheDocument();
   });

@@ -38,6 +38,7 @@
     "elevation": "Elevation",
     "calories": "Calories",
     "speed": "Speed",
+    "pace": "Pace",
     "loadError": "Could not load this activity.",
     "noMap": "No GPS track for this activity.",
     "elevationChart": "Elevation",

@@ -3,6 +3,7 @@ import {
   formatCalories,
   formatDistanceMeters,
   formatDurationSeconds,
+  formatPace,
   formatSpeedMps,
 } from './units.js';
 
@@ -23,6 +24,18 @@ describe('formatSpeedMps', () => {
 describe('formatCalories', () => {
   it('rounds to whole kilocalories', () => {
     expect(formatCalories(512.4)).toBe('512 kcal');
+  });
+});
+
+describe('formatPace', () => {
+  it('uses min/km and min/mile', () => {
+    expect(formatPace(3500, 10200, 'metric')).toBe('5:43 /km');
+    expect(formatPace(3500, 10200, 'imperial')).toBe('9:12 /mi');
+  });
+
+  it('returns null without a usable time or distance', () => {
+    expect(formatPace(0, 10200, 'metric')).toBeNull();
+    expect(formatPace(3500, 0, 'metric')).toBeNull();
   });
 });
 

@@ -2,6 +2,7 @@ import {
   formatCalories,
   formatDistanceMeters,
   formatDurationSeconds,
+  formatPace,
   formatSpeedMps,
 } from '@road-to/domain';
 import { useQuery } from '@tanstack/react-query';
@@ -50,6 +51,10 @@ function ActivityDetailPage() {
 
   const latlng = activity.streams?.latlng ?? null;
   const hasTrack = (latlng !== null && latlng.length > 1) || Boolean(activity.mapPolyline);
+  const pace =
+    activity.sport === 'run' && activity.movingTimeS != null && activity.distanceM != null
+      ? formatPace(activity.movingTimeS, activity.distanceM, units)
+      : null;
 
   return (
     <section className="max-w-2xl">
@@ -86,6 +91,12 @@ function ActivityDetailPage() {
             {activity.movingTimeS != null ? formatDurationSeconds(activity.movingTimeS) : '—'}
           </dd>
         </div>
+        {pace ? (
+          <div>
+            <dt className="text-muted">{t('activities.pace')}</dt>
+            <dd>{pace}</dd>
+          </div>
+        ) : null}
         <div>
           <dt className="text-muted">{t('activities.elevation')}</dt>
           <dd>

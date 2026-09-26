@@ -62,7 +62,7 @@ describe('AppPage', () => {
       'href',
       '/app/activities/act_1',
     );
-    expect(screen.getByText('10.2 km · 58:20')).toBeInTheDocument();
+    expect(screen.getByText('10.2 km · 58:20 · 5:43 /km')).toBeInTheDocument();
     expect(screen.getByText('Strava connected')).toBeInTheDocument();
   });
 });
