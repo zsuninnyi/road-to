@@ -26,6 +26,7 @@ type StoredActivity = {
   avgSpeedMps: number | null;
   calories: number | null;
   mapPolyline: string | null;
+  description: string | null;
 };
 
 type StoredSource = {
@@ -50,6 +51,7 @@ function toPublic(row: StoredActivity): PublicActivity {
     elevationGainM: row.elevationGainM,
     avgHr: row.avgHr,
     mapPolyline: row.mapPolyline,
+    description: row.description,
     sources: [{ provider: 'strava' }],
   };
 }
@@ -160,6 +162,7 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         avgSpeedMps: input.normalized.avgSpeedMps,
         calories: input.normalized.calories,
         mapPolyline: input.normalized.mapPolyline,
+        description: existingActivity?.description ?? null,
       });
       sources.set(key, {
         id: sourceId,
@@ -189,6 +192,14 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         payload: source.payload,
       };
       return record;
+    },
+    async updateActivityDescription(userId, id, description) {
+      const row = activities.get(id);
+      if (!row || row.userId !== userId) {
+        return null;
+      }
+      activities.set(id, { ...row, description });
+      return this.getActivityById(userId, id);
     },
   };
 }

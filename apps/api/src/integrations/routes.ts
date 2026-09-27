@@ -40,6 +40,7 @@ const activitySchema = {
     'elevationGainM',
     'avgHr',
     'mapPolyline',
+    'description',
     'sources',
   ],
   properties: {
@@ -54,6 +55,7 @@ const activitySchema = {
     elevationGainM: { type: ['number', 'null'] },
     avgHr: { type: ['integer', 'null'] },
     mapPolyline: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'] },
     sources: {
       type: 'array',
       items: {
@@ -326,6 +328,49 @@ export async function registerIntegrationRoutes(
       const { id } = request.params as { id: string };
       try {
         return await integrations.getActivity(user.id, id);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.patch(
+    '/v1/activities/:id',
+    {
+      schema: {
+        tags: ['activities'],
+        summary: 'Update owner fields on an activity',
+        security: sessionSecurity,
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['description'],
+          properties: {
+            description: { type: ['string', 'null'], maxLength: 4000 },
+          },
+        },
+        response: {
+          200: activityDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id } = request.params as { id: string };
+      const { description } = request.body as { description: string | null };
+      try {
+        return await integrations.updateActivity(user.id, id, { description });
       } catch (error) {
         return sendServiceError(reply, error);
       }

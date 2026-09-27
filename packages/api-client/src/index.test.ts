@@ -91,6 +91,7 @@ describe('createApiClient', () => {
       maxHr: 171,
       avgSpeedMps: 2.91,
       calories: 640,
+      description: null,
       hydrated: true,
       streams: null,
     };
@@ -99,6 +100,24 @@ describe('createApiClient', () => {
     await expect(client.activity('act_1')).resolves.toEqual(detail);
     expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
       credentials: 'include',
+    });
+  });
+
+  it('patches an activity description', async () => {
+    const detail = {
+      id: 'act_1',
+      description: 'Felt easy',
+    };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.updateActivity('act_1', { description: 'Felt easy' })).resolves.toEqual(
+      detail,
+    );
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
+      credentials: 'include',
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'Felt easy' }),
     });
   });
 

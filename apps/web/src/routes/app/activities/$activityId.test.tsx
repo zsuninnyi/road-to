@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderRoute, signedInUser, stubSession } from '../../../test/router';
 
 afterEach(() => {
@@ -20,6 +21,7 @@ const morningRun = {
   elevationGainM: 80,
   avgHr: 148,
   mapPolyline: null,
+  description: null,
   sources: [{ provider: 'strava' as const }],
   timezone: '(GMT+02:00) Europe/Budapest',
   maxHr: 171,
@@ -45,6 +47,19 @@ describe('ActivityDetailPage', () => {
     expect(screen.getByText('Pace')).toBeInTheDocument();
     expect(screen.getByText('171 bpm')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Heart rate' })).toBeInTheDocument();
+  });
+
+  it('saves an owner note', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: morningRun });
+    await renderRoute('/app/activities/act_1');
+
+    const note = await screen.findByLabelText('Note');
+    await user.type(note, 'Felt easy');
+    await user.click(screen.getByRole('button', { name: 'Save note' }));
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(note).toHaveValue('Felt easy');
   });
 
   it('shows an error when the activity is missing', async () => {

@@ -60,6 +60,11 @@ export type IntegrationService = {
   resync(userId: string, integrationId: string): Promise<{ imported: number }>;
   listActivities(userId: string): Promise<PublicActivity[]>;
   getActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
+  updateActivity(
+    userId: string,
+    activityId: string,
+    input: { description: string | null },
+  ): Promise<PublicActivityDetail>;
 };
 
 function toPublic(row: {
@@ -84,6 +89,11 @@ function appRedirect(webOrigin: string, strava: string): { location: string } {
   return { location: url.toString() };
 }
 
+function normalizeOwnerDescription(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length === 0 ? null : trimmed;
+}
+
 function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
   const payload = asJsonRecord(row.payload);
   const hydrated = isHydratedStravaPayload(payload);
@@ -103,6 +113,7 @@ function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
     avgSpeedMps: row.avgSpeedMps,
     calories: row.calories,
     mapPolyline: row.mapPolyline,
+    description: row.description,
     sources: [{ provider: 'strava' }],
     hydrated,
     streams: hydrated ? parseStravaStreams(payload.streams) : null,
@@ -290,6 +301,14 @@ export function createIntegrationService(options: {
       const updated = await options.repo.getActivityById(userId, activityId);
       return toActivityDetail(updated ?? row);
     },
+    async updateActivity(userId, activityId, input) {
+      const description = normalizeOwnerDescription(input.description);
+      const updated = await options.repo.updateActivityDescription(userId, activityId, description);
+      if (!updated) {
+        throw new ActivityNotFoundError();
+      }
+      return toActivityDetail(updated);
+    },
   };
 }
 
@@ -304,5 +323,6 @@ export function createUnavailableIntegrationService(): IntegrationService {
     resync: fail,
     listActivities: fail,
     getActivity: fail,
+    updateActivity: fail,
   };
 }

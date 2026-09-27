@@ -48,6 +48,7 @@ export type Activity = {
   elevationGainM: number | null;
   avgHr: number | null;
   mapPolyline: string | null;
+  description: string | null;
   sources: Array<{ provider: 'strava' }>;
 };
 
@@ -125,6 +126,16 @@ export function createApiClient(options: ApiClientOptions) {
     },
     activity(id: string): Promise<ActivityDetail> {
       return request<ActivityDetail>(`/v1/activities/${id}`);
+    },
+    updateActivity(
+      id: string,
+      input: { description: string | null },
+    ): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
     },
   };
 }

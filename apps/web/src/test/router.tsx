@@ -17,14 +17,15 @@ export function stubSession(
   user: MeUser | null,
   options: {
     integrations?: unknown[];
-    activities?: unknown[];
-    activity?: unknown;
+    activities?: Array<Record<string, unknown>>;
+    activity?: Record<string, unknown>;
   } = {},
 ) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
       if (url.includes('/v1/me')) {
         if (!user) {
           return {
@@ -54,6 +55,29 @@ export function stubSession(
         };
       }
       if (/\/v1\/activities\/[^/?]+/.test(url)) {
+        if (method === 'PATCH') {
+          if (!options.activity) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({ error: 'Not found' }),
+            };
+          }
+          const body = JSON.parse(String(init?.body ?? '{}')) as { description: string | null };
+          options.activity = { ...options.activity, description: body.description };
+          if (options.activities) {
+            options.activities = options.activities.map((activity) =>
+              activity.id === options.activity?.id
+                ? { ...activity, description: body.description }
+                : activity,
+            );
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
         if (options.activity) {
           return {
             ok: true,

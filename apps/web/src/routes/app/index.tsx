@@ -142,6 +142,9 @@ export function AppPage() {
                     <span className="mx-2">·</span>
                     <span className="capitalize">{activity.sport}</span>
                   </p>
+                  {activity.description ? (
+                    <p className="mt-1 text-sm text-muted">{activity.description}</p>
+                  ) : null}
                 </div>
                 <p className="text-sm text-muted">
                   {activity.distanceM != null

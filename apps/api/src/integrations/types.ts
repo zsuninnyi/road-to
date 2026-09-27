@@ -36,6 +36,7 @@ export type PublicActivity = {
   elevationGainM: number | null;
   avgHr: number | null;
   mapPolyline: string | null;
+  description: string | null;
   sources: Array<{ provider: 'strava' }>;
 };
 
@@ -66,6 +67,7 @@ export type ActivityRecord = {
   avgSpeedMps: number | null;
   calories: number | null;
   mapPolyline: string | null;
+  description: string | null;
   integrationId: string;
   externalId: string;
   payload: unknown;
@@ -108,4 +110,9 @@ export type IntegrationRepository = {
   }): Promise<void>;
   listActivities(userId: string): Promise<PublicActivity[]>;
   getActivityById(userId: string, id: string): Promise<ActivityRecord | null>;
+  updateActivityDescription(
+    userId: string,
+    id: string,
+    description: string | null,
+  ): Promise<ActivityRecord | null>;
 };

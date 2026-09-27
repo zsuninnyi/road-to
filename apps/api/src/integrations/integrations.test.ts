@@ -185,6 +185,7 @@ describe('Strava integrations', () => {
           elevationGainM: null,
           avgHr: null,
           mapPolyline: '_p~iF~ps|U',
+          description: null,
           sources: [{ provider: 'strava' }],
         },
       ],
@@ -318,6 +319,54 @@ describe('Strava integrations', () => {
     await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
     expect(activityCalls).toBe(1);
     expect(streamCalls).toBe(1);
+  });
+
+  it('saves an owner description and keeps it after resync', async () => {
+    const server = await build();
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const patched = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { description: '  Felt easy  ' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ id, description: 'Felt easy' });
+
+    const listedAgain = await server.inject({ method: 'GET', url: '/v1/activities' });
+    expect(listedAgain.json()).toMatchObject({
+      activities: [{ id, description: 'Felt easy' }],
+    });
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(afterResync.json()).toMatchObject({ description: 'Felt easy' });
+  });
+
+  it('returns 404 when patching an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/v1/activities/missing',
+      payload: { description: 'Nope' },
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it('returns 404 for an unknown activity', async () => {

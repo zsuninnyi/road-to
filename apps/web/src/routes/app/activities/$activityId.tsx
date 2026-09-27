@@ -5,8 +5,9 @@ import {
   formatPace,
   formatSpeedMps,
 } from '@road-to/domain';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityMap } from '../../../activities/map';
 import { Sparkline } from '../../../activities/sparkline';
@@ -78,6 +79,8 @@ function ActivityDetailPage() {
         <span className="capitalize">{activity.sport}</span>
       </p>
 
+      <ActivityNoteForm activityId={activity.id} description={activity.description} />
+
       <dl className="mt-6 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-muted">{t('activities.distance')}</dt>
@@ -138,5 +141,68 @@ function ActivityDetailPage() {
         <Sparkline values={activity.streams.heartrate} label={t('activities.hrChart')} />
       ) : null}
     </section>
+  );
+}
+
+function ActivityNoteForm({
+  activityId,
+  description,
+}: {
+  activityId: string;
+  description: string | null;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState(description ?? '');
+
+  useEffect(() => {
+    setDraft(description ?? '');
+  }, [description]);
+
+  const saveMutation = useMutation({
+    mutationFn: (value: string) =>
+      api.updateActivity(activityId, { description: value.trim() === '' ? null : value.trim() }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['activity', activityId] });
+      await queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  return (
+    <form
+      className="mt-6"
+      onSubmit={(event) => {
+        event.preventDefault();
+        saveMutation.mutate(draft);
+      }}
+    >
+      <label className="block text-sm font-medium" htmlFor="activity-description">
+        {t('activities.description')}
+      </label>
+      <textarea
+        id="activity-description"
+        className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm"
+        rows={4}
+        maxLength={4000}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder={t('activities.descriptionPlaceholder')}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-fg"
+          disabled={saveMutation.isPending}
+        >
+          {t('activities.saveDescription')}
+        </button>
+        {saveMutation.isSuccess ? (
+          <p className="text-sm text-muted">{t('activities.descriptionSaved')}</p>
+        ) : null}
+        {saveMutation.isError ? (
+          <p className="text-sm text-danger">{t('activities.descriptionError')}</p>
+        ) : null}
+      </div>
+    </form>
   );
 }

@@ -42,7 +42,12 @@
     "loadError": "Could not load this activity.",
     "noMap": "No GPS track for this activity.",
     "elevationChart": "Elevation",
-    "hrChart": "Heart rate"
+    "hrChart": "Heart rate",
+    "description": "Note",
+    "descriptionPlaceholder": "Add a note about this activity",
+    "saveDescription": "Save note",
+    "descriptionSaved": "Saved",
+    "descriptionError": "Could not save the note."
   },
   "projects": {
     "title": "Projects",

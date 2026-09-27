@@ -276,6 +276,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
         elevationGainM: row.elevation_gain_m,
         avgHr: row.avg_hr,
         mapPolyline: row.map_polyline,
+        description: row.description,
         sources: [{ provider: 'strava' as const }],
       }));
       return result;
@@ -302,6 +303,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           'activities.avg_speed_mps as avg_speed_mps',
           'activities.calories as calories',
           'activities.map_polyline as map_polyline',
+          'activities.description as description',
           'activity_sources.integration_id as integration_id',
           'activity_sources.external_id as external_id',
           'activity_sources.payload as payload',
@@ -331,11 +333,25 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
         avgSpeedMps: row.avg_speed_mps,
         calories: row.calories,
         mapPolyline: row.map_polyline,
+        description: row.description,
         integrationId: row.integration_id,
         externalId: row.external_id,
         payload: row.payload,
       };
       return record;
+    },
+    async updateActivityDescription(userId, id, description) {
+      const result = await db
+        .updateTable('activities')
+        .set({ description, updated_at: new Date() })
+        .where('id', '=', id)
+        .where('user_id', '=', userId)
+        .where('deleted_at', 'is', null)
+        .executeTakeFirst();
+      if (!result.numUpdatedRows || result.numUpdatedRows === 0n) {
+        return null;
+      }
+      return this.getActivityById(userId, id);
     },
   };
 }

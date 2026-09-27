@@ -51,6 +51,7 @@ describe('AppPage', () => {
           elevationGainM: 80,
           avgHr: 148,
           mapPolyline: '_p~iF~ps|U',
+          description: 'Easy shakeout',
           sources: [{ provider: 'strava' }],
         },
       ],
@@ -62,6 +63,7 @@ describe('AppPage', () => {
       'href',
       '/app/activities/act_1',
     );
+    expect(screen.getByText('Easy shakeout')).toBeInTheDocument();
     expect(screen.getByText('10.2 km · 58:20 · 5:43 /km')).toBeInTheDocument();
     expect(screen.getByText('Strava connected')).toBeInTheDocument();
   });
