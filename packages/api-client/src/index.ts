@@ -64,6 +64,7 @@ export type ActivityDetail = Activity & {
   maxHr: number | null;
   avgSpeedMps: number | null;
   calories: number | null;
+  titleOverridden: boolean;
   hydrated: boolean;
   streams: ActivityStreams | null;
 };
@@ -129,7 +130,7 @@ export function createApiClient(options: ApiClientOptions) {
     },
     updateActivity(
       id: string,
-      input: { description: string | null },
+      input: { description?: string | null; title?: string | null },
     ): Promise<ActivityDetail> {
       return request<ActivityDetail>(`/v1/activities/${id}`, {
         method: 'PATCH',

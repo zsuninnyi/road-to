@@ -62,9 +62,14 @@ function ActivityDetailPage() {
       <Link to="/app" className="text-sm text-muted hover:text-ink">
         {t('activities.back')}
       </Link>
-      <div className="mt-4 flex flex-wrap items-baseline gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">{activity.title}</h1>
-        <span className="rounded-md border border-line px-2 py-0.5 text-xs font-medium">
+      <h1 className="sr-only">{activity.title}</h1>
+      <div className="mt-4 flex flex-wrap items-start gap-3">
+        <ActivityTitleForm
+          activityId={activity.id}
+          title={activity.title}
+          titleOverridden={activity.titleOverridden}
+        />
+        <span className="mt-7 rounded-md border border-line px-2 py-0.5 text-xs font-medium">
           {t('activities.sourceStrava')}
         </span>
       </div>
@@ -141,6 +146,78 @@ function ActivityDetailPage() {
         <Sparkline values={activity.streams.heartrate} label={t('activities.hrChart')} />
       ) : null}
     </section>
+  );
+}
+
+function ActivityTitleForm({
+  activityId,
+  title,
+  titleOverridden,
+}: {
+  activityId: string;
+  title: string;
+  titleOverridden: boolean;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState(title);
+
+  useEffect(() => {
+    setDraft(title);
+  }, [title]);
+
+  const saveMutation = useMutation({
+    mutationFn: (value: string | null) => api.updateActivity(activityId, { title: value }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['activity', activityId] });
+      await queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  return (
+    <form
+      className="min-w-0 flex-1"
+      onSubmit={(event) => {
+        event.preventDefault();
+        saveMutation.mutate(draft.trim() === '' ? null : draft.trim());
+      }}
+    >
+      <label className="block text-sm font-medium" htmlFor="activity-title">
+        {t('activities.titleLabel')}
+      </label>
+      <input
+        id="activity-title"
+        className="mt-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-2xl font-semibold tracking-tight"
+        maxLength={255}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-fg"
+          disabled={saveMutation.isPending}
+        >
+          {t('activities.saveTitle')}
+        </button>
+        {titleOverridden ? (
+          <button
+            type="button"
+            className="text-sm text-muted hover:text-ink"
+            disabled={saveMutation.isPending}
+            onClick={() => saveMutation.mutate(null)}
+          >
+            {t('activities.useProviderTitle')}
+          </button>
+        ) : null}
+        {saveMutation.isSuccess ? (
+          <p className="text-sm text-muted">{t('activities.descriptionSaved')}</p>
+        ) : null}
+        {saveMutation.isError ? (
+          <p className="text-sm text-danger">{t('activities.titleError')}</p>
+        ) : null}
+      </div>
+    </form>
   );
 }
 

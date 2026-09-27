@@ -45,6 +45,7 @@ export type PublicActivityDetail = PublicActivity & {
   maxHr: number | null;
   avgSpeedMps: number | null;
   calories: number | null;
+  titleOverridden: boolean;
   hydrated: boolean;
   streams: ActivityStreamsDto | null;
 };
@@ -110,9 +111,13 @@ export type IntegrationRepository = {
   }): Promise<void>;
   listActivities(userId: string): Promise<PublicActivity[]>;
   getActivityById(userId: string, id: string): Promise<ActivityRecord | null>;
-  updateActivityDescription(
+  updateActivityFields(
     userId: string,
     id: string,
-    description: string | null,
+    fields: {
+      description?: string | null;
+      title?: string;
+      titleOverridden?: boolean;
+    },
   ): Promise<ActivityRecord | null>;
 };

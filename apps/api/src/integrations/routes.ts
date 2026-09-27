@@ -77,6 +77,7 @@ const activityDetailSchema = {
     'maxHr',
     'avgSpeedMps',
     'calories',
+    'titleOverridden',
     'hydrated',
     'streams',
   ],
@@ -86,6 +87,7 @@ const activityDetailSchema = {
     maxHr: { type: ['integer', 'null'] },
     avgSpeedMps: { type: ['number', 'null'] },
     calories: { type: ['number', 'null'] },
+    titleOverridden: { type: 'boolean' },
     hydrated: { type: 'boolean' },
     streams: {
       type: ['object', 'null'],
@@ -349,9 +351,10 @@ export async function registerIntegrationRoutes(
         body: {
           type: 'object',
           additionalProperties: false,
-          required: ['description'],
+          minProperties: 1,
           properties: {
             description: { type: ['string', 'null'], maxLength: 4000 },
+            title: { type: ['string', 'null'], maxLength: 255 },
           },
         },
         response: {
@@ -368,9 +371,9 @@ export async function registerIntegrationRoutes(
         return;
       }
       const { id } = request.params as { id: string };
-      const { description } = request.body as { description: string | null };
+      const body = request.body as { description?: string | null; title?: string | null };
       try {
-        return await integrations.updateActivity(user.id, id, { description });
+        return await integrations.updateActivity(user.id, id, body);
       } catch (error) {
         return sendServiceError(reply, error);
       }

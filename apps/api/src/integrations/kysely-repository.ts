@@ -340,10 +340,17 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
       };
       return record;
     },
-    async updateActivityDescription(userId, id, description) {
+    async updateActivityFields(userId, id, fields) {
       const result = await db
         .updateTable('activities')
-        .set({ description, updated_at: new Date() })
+        .set({
+          ...(fields.description !== undefined ? { description: fields.description } : {}),
+          ...(fields.title !== undefined ? { title: fields.title } : {}),
+          ...(fields.titleOverridden !== undefined
+            ? { title_overridden: fields.titleOverridden }
+            : {}),
+          updated_at: new Date(),
+        })
         .where('id', '=', id)
         .where('user_id', '=', userId)
         .where('deleted_at', 'is', null)

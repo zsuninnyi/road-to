@@ -27,6 +27,7 @@ const morningRun = {
   maxHr: 171,
   avgSpeedMps: 2.91,
   calories: 640,
+  titleOverridden: false,
   hydrated: true,
   streams: {
     latlng: null,
@@ -41,7 +42,7 @@ describe('ActivityDetailPage', () => {
     stubSession(signedInUser, { activity: morningRun });
     await renderRoute('/app/activities/act_1');
 
-    expect(await screen.findByRole('heading', { name: 'Morning Run' })).toBeInTheDocument();
+    expect(await screen.findByLabelText('Title')).toHaveValue('Morning Run');
     expect(screen.getByText('Strava')).toBeInTheDocument();
     expect(screen.getByText('5:43 /km')).toBeInTheDocument();
     expect(screen.getByText('Pace')).toBeInTheDocument();
@@ -60,6 +61,21 @@ describe('ActivityDetailPage', () => {
 
     expect(await screen.findByText('Saved')).toBeInTheDocument();
     expect(note).toHaveValue('Felt easy');
+  });
+
+  it('overrides the activity title', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: { ...morningRun } });
+    await renderRoute('/app/activities/act_1');
+
+    const title = await screen.findByLabelText('Title');
+    await user.clear(title);
+    await user.type(title, 'Tempo');
+    await user.click(screen.getByRole('button', { name: 'Save title' }));
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(title).toHaveValue('Tempo');
+    expect(await screen.findByRole('button', { name: 'Use Strava title' })).toBeInTheDocument();
   });
 
   it('shows an error when the activity is missing', async () => {

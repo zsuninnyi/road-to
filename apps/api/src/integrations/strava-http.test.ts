@@ -93,4 +93,24 @@ describe('createStravaHttpClient', () => {
     expect(urls[1]).toContain('/activities/98765/streams');
     expect(urls[1]).toContain('key_by_type=true');
   });
+
+  it('updates an activity description', async () => {
+    const fetchFn: typeof fetch = async (input, init) => {
+      expect(String(input)).toBe('https://www.strava.com/api/v3/activities/98765');
+      expect(init?.method).toBe('PUT');
+      expect(init?.body).toBe(JSON.stringify({ description: 'Felt easy' }));
+      return jsonResponse({ id: 98_765, description: 'Felt easy' });
+    };
+    const client = createStravaHttpClient({
+      clientId: 'id',
+      clientSecret: 'secret',
+      fetchFn,
+    });
+    await expect(
+      client.updateActivity('tok', '98765', { description: 'Felt easy' }),
+    ).resolves.toEqual({
+      id: 98_765,
+      description: 'Felt easy',
+    });
+  });
 });

@@ -66,5 +66,6 @@ describe('AppPage', () => {
     expect(screen.getByText('Easy shakeout')).toBeInTheDocument();
     expect(screen.getByText('10.2 km · 58:20 · 5:43 /km')).toBeInTheDocument();
     expect(screen.getByText('Strava connected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reconnect Strava' })).toBeInTheDocument();
   });
 });

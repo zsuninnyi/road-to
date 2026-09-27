@@ -63,13 +63,28 @@ export function stubSession(
               json: async () => ({ error: 'Not found' }),
             };
           }
-          const body = JSON.parse(String(init?.body ?? '{}')) as { description: string | null };
-          options.activity = { ...options.activity, description: body.description };
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            description?: string | null;
+            title?: string | null;
+          };
+          const next = { ...options.activity };
+          if (body.description !== undefined) {
+            next.description = body.description;
+          }
+          if (body.title !== undefined) {
+            const trimmed = body.title?.trim() ?? '';
+            if (trimmed.length === 0) {
+              next.title = 'Morning Run';
+              next.titleOverridden = false;
+            } else {
+              next.title = trimmed;
+              next.titleOverridden = true;
+            }
+          }
+          options.activity = next;
           if (options.activities) {
             options.activities = options.activities.map((activity) =>
-              activity.id === options.activity?.id
-                ? { ...activity, description: body.description }
-                : activity,
+              activity.id === next.id ? { ...activity, ...next } : activity,
             );
           }
           return {

@@ -49,6 +49,7 @@ function createFakeStrava(
     }>;
     onGetActivity?: () => void;
     onGetStreams?: () => void;
+    onUpdateActivity?: (id: string, input: { description: string }) => void;
   } = {},
 ): StravaClient {
   return {
@@ -72,8 +73,15 @@ function createFakeStrava(
     listActivities: async () => activities,
     getActivity: async (_token, id) => {
       options.onGetActivity?.();
+      const listed = activities.find((item) => {
+        if (typeof item !== 'object' || item === null || !('id' in item)) {
+          return false;
+        }
+        return Number((item as { id: number }).id) === Number(id);
+      });
       return {
         ...sampleActivity,
+        ...(typeof listed === 'object' && listed !== null ? listed : {}),
         id: Number(id),
         calories: 640,
         average_heartrate: 148,
@@ -96,6 +104,10 @@ function createFakeStrava(
         altitude: { data: [110, 112] },
         heartrate: { data: [140, 145] },
       };
+    },
+    updateActivity: async (_token, id, input) => {
+      options.onUpdateActivity?.(id, input);
+      return { id: Number(id), description: input.description };
     },
   };
 }
@@ -151,7 +163,7 @@ describe('Strava integrations', () => {
     expect(url.origin).toBe('https://www.strava.com');
     expect(url.searchParams.get('client_id')).toBe('strava-client');
     expect(url.searchParams.get('redirect_uri')).toBe(secrets.redirectUri);
-    expect(url.searchParams.get('scope')).toBe('read,activity:read_all');
+    expect(url.searchParams.get('scope')).toBe('read,activity:read_all,activity:write');
   });
 
   it('imports the last month after the OAuth callback', async () => {
@@ -321,8 +333,16 @@ describe('Strava integrations', () => {
     expect(streamCalls).toBe(1);
   });
 
-  it('saves an owner description and keeps it after resync', async () => {
-    const server = await build();
+  it('saves an owner description, pushes it to Strava, and keeps it after resync', async () => {
+    const pushed: Array<{ id: string; description: string }> = [];
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onUpdateActivity: (id, input) => {
+          pushed.push({ id, description: input.description });
+        },
+      }),
+    );
     const state = createOAuthState(
       'user_1',
       secrets.oauthSecret,
@@ -344,6 +364,7 @@ describe('Strava integrations', () => {
     });
     expect(patched.statusCode).toBe(200);
     expect(patched.json()).toMatchObject({ id, description: 'Felt easy' });
+    expect(pushed).toEqual([{ id: '98765', description: 'Felt easy' }]);
 
     const listedAgain = await server.inject({ method: 'GET', url: '/v1/activities' });
     expect(listedAgain.json()).toMatchObject({
@@ -357,6 +378,49 @@ describe('Strava integrations', () => {
 
     const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
     expect(afterResync.json()).toMatchObject({ description: 'Felt easy' });
+  });
+
+  it('overrides the title and restores the provider title when cleared', async () => {
+    const activities = [{ ...sampleActivity }];
+    const server = await build(signedIn, createFakeStrava(activities));
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const patched = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: '  Tempo  ' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ title: 'Tempo', titleOverridden: true });
+
+    activities[0] = { ...sampleActivity, name: 'Easy Run' };
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(afterResync.json()).toMatchObject({ title: 'Tempo', titleOverridden: true });
+
+    const cleared = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json()).toMatchObject({ title: 'Easy Run', titleOverridden: false });
   });
 
   it('returns 404 when patching an unknown activity', async () => {

@@ -193,12 +193,17 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
       };
       return record;
     },
-    async updateActivityDescription(userId, id, description) {
+    async updateActivityFields(userId, id, fields) {
       const row = activities.get(id);
       if (!row || row.userId !== userId) {
         return null;
       }
-      activities.set(id, { ...row, description });
+      activities.set(id, {
+        ...row,
+        ...(fields.description !== undefined ? { description: fields.description } : {}),
+        ...(fields.title !== undefined ? { title: fields.title } : {}),
+        ...(fields.titleOverridden !== undefined ? { titleOverridden: fields.titleOverridden } : {}),
+      });
       return this.getActivityById(userId, id);
     },
   };
