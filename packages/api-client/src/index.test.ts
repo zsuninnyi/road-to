@@ -139,6 +139,17 @@ describe('createApiClient', () => {
     });
   });
 
+  it('resyncs one activity', async () => {
+    const detail = { id: 'act_1', hydrated: true };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.resyncActivity('act_1')).resolves.toEqual(detail);
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1/resync', {
+      credentials: 'include',
+      method: 'POST',
+    });
+  });
+
   it('posts Strava connect', async () => {
     const fetchFn = vi
       .fn()

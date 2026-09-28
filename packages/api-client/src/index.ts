@@ -128,6 +128,9 @@ export function createApiClient(options: ApiClientOptions) {
     activity(id: string): Promise<ActivityDetail> {
       return request<ActivityDetail>(`/v1/activities/${id}`);
     },
+    resyncActivity(id: string): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}/resync`, { method: 'POST' });
+    },
     updateActivity(
       id: string,
       input: { description?: string | null; title?: string | null },

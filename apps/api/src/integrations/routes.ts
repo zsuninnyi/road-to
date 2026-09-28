@@ -379,4 +379,38 @@ export async function registerIntegrationRoutes(
       }
     },
   );
+
+  app.post(
+    '/v1/activities/:id/resync',
+    {
+      schema: {
+        tags: ['activities'],
+        summary: 'Refresh one activity from Strava detail and streams',
+        security: sessionSecurity,
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: activityDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id } = request.params as { id: string };
+      try {
+        return await integrations.resyncActivity(user.id, id);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
 }

@@ -52,7 +52,9 @@
     "titleLabel": "Title",
     "saveTitle": "Save title",
     "titleError": "Could not save the title.",
-    "useProviderTitle": "Use Strava title"
+    "useProviderTitle": "Use Strava title",
+    "resyncActivity": "Refresh from Strava",
+    "resyncActivityError": "Could not refresh this activity."
   },
   "projects": {
     "title": "Projects",

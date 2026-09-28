@@ -19,6 +19,7 @@ export const Route = createFileRoute('/app/activities/$activityId')({
 
 function ActivityDetailPage() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const { activityId } = Route.useParams();
   const meQuery = useQuery(meQueryOptions());
   const units = meQuery.data?.user.units === 'imperial' ? 'imperial' : 'metric';
@@ -26,6 +27,13 @@ function ActivityDetailPage() {
     queryKey: ['activity', activityId],
     queryFn: () => api.activity(activityId),
     retry: false,
+  });
+  const resyncMutation = useMutation({
+    mutationFn: () => api.resyncActivity(activityId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['activity', activityId] });
+      await queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
   });
 
   if (activityQuery.isError) {
@@ -83,6 +91,19 @@ function ActivityDetailPage() {
         <span className="mx-2">·</span>
         <span className="capitalize">{activity.sport}</span>
       </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="rounded-md border border-line px-4 py-2 text-sm font-medium hover:text-ink"
+          disabled={resyncMutation.isPending}
+          onClick={() => void resyncMutation.mutate()}
+        >
+          {t('activities.resyncActivity')}
+        </button>
+        {resyncMutation.isError ? (
+          <p className="text-sm text-danger">{t('activities.resyncActivityError')}</p>
+        ) : null}
+      </div>
 
       <ActivityNoteForm activityId={activity.id} description={activity.description} />
 

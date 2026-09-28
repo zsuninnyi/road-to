@@ -78,6 +78,16 @@ describe('ActivityDetailPage', () => {
     expect(await screen.findByRole('button', { name: 'Use Strava title' })).toBeInTheDocument();
   });
 
+  it('refreshes the activity from Strava', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: morningRun });
+    await renderRoute('/app/activities/act_1');
+
+    await user.click(await screen.findByRole('button', { name: 'Refresh from Strava' }));
+
+    expect(await screen.findByLabelText('Title')).toHaveValue('Morning Run');
+  });
+
   it('shows an error when the activity is missing', async () => {
     stubSession(signedInUser);
     await renderRoute('/app/activities/missing');

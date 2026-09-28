@@ -60,6 +60,7 @@ export type IntegrationService = {
   resync(userId: string, integrationId: string): Promise<{ imported: number }>;
   listActivities(userId: string): Promise<PublicActivity[]>;
   getActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
+  resyncActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
   updateActivity(
     userId: string,
     activityId: string,
@@ -229,6 +230,39 @@ export function createIntegrationService(options: {
     }
   }
 
+  async function hydrateFromStrava(
+    userId: string,
+    row: ActivityRecord,
+  ): Promise<PublicActivityDetail> {
+    if (!options.strava) {
+      throw new StravaNotConfiguredError();
+    }
+    const integration = await options.repo.getById(userId, row.integrationId);
+    if (!integration) {
+      throw new IntegrationNotFoundError();
+    }
+    const accessToken = await validAccessToken(integration);
+    const activity = await options.strava.getActivity(accessToken, row.externalId);
+    const streams = await options.strava.getStreams(accessToken, row.externalId);
+    const parsed = parseStravaSummary(activity);
+    const normalized = parsed ? normalizeStravaSummary(parsed) : null;
+    if (!normalized) {
+      return toActivityDetail(row);
+    }
+    const streamDto = parseStravaStreams(streams);
+    await options.repo.upsertStravaActivity({
+      userId,
+      integrationId: row.integrationId,
+      normalized: {
+        ...normalized,
+        hasGps: normalized.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
+      },
+      payload: { activity: trimStravaDetail(activity), streams },
+    });
+    const updated = await options.repo.getActivityById(userId, row.id);
+    return toActivityDetail(updated ?? row);
+  }
+
   return {
     async listIntegrations(userId) {
       const rows = await options.repo.listByUser(userId);
@@ -291,30 +325,14 @@ export function createIntegrationService(options: {
       if (isHydratedStravaPayload(asJsonRecord(row.payload)) || !options.strava) {
         return toActivityDetail(row);
       }
-      const integration = await options.repo.getById(userId, row.integrationId);
-      if (!integration) {
-        throw new IntegrationNotFoundError();
+      return hydrateFromStrava(userId, row);
+    },
+    async resyncActivity(userId, activityId) {
+      const row = await options.repo.getActivityById(userId, activityId);
+      if (!row) {
+        throw new ActivityNotFoundError();
       }
-      const accessToken = await validAccessToken(integration);
-      const activity = await options.strava.getActivity(accessToken, row.externalId);
-      const streams = await options.strava.getStreams(accessToken, row.externalId);
-      const parsed = parseStravaSummary(activity);
-      const normalized = parsed ? normalizeStravaSummary(parsed) : null;
-      if (!normalized) {
-        return toActivityDetail(row);
-      }
-      const streamDto = parseStravaStreams(streams);
-      await options.repo.upsertStravaActivity({
-        userId,
-        integrationId: row.integrationId,
-        normalized: {
-          ...normalized,
-          hasGps: normalized.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
-        },
-        payload: { activity: trimStravaDetail(activity), streams },
-      });
-      const updated = await options.repo.getActivityById(userId, activityId);
-      return toActivityDetail(updated ?? row);
+      return hydrateFromStrava(userId, row);
     },
     async updateActivity(userId, activityId, input) {
       const row = await options.repo.getActivityById(userId, activityId);
@@ -372,6 +390,7 @@ export function createUnavailableIntegrationService(): IntegrationService {
     resync: fail,
     listActivities: fail,
     getActivity: fail,
+    resyncActivity: fail,
     updateActivity: fail,
   };
 }

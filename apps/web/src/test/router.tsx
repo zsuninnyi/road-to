@@ -55,6 +55,20 @@ export function stubSession(
         };
       }
       if (/\/v1\/activities\/[^/?]+/.test(url)) {
+        if (method === 'POST' && url.includes('/resync')) {
+          if (!options.activity) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({ error: 'Not found' }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
         if (method === 'PATCH') {
           if (!options.activity) {
             return {

@@ -333,6 +333,74 @@ describe('Strava integrations', () => {
     expect(streamCalls).toBe(1);
   });
 
+  it('refreshes one activity from Strava without clobbering owner fields', async () => {
+    let activityCalls = 0;
+    let streamCalls = 0;
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onGetActivity: () => {
+          activityCalls += 1;
+        },
+        onGetStreams: () => {
+          streamCalls += 1;
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: 'Tempo', description: 'Felt easy' },
+    });
+
+    const refreshed = await server.inject({
+      method: 'POST',
+      url: `/v1/activities/${id}/resync`,
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.json()).toMatchObject({
+      title: 'Tempo',
+      titleOverridden: true,
+      description: 'Felt easy',
+      hydrated: true,
+      calories: 640,
+    });
+    expect(activityCalls).toBe(2);
+    expect(streamCalls).toBe(2);
+
+    const again = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(again.json()).toMatchObject({ title: 'Tempo', description: 'Felt easy' });
+    expect(activityCalls).toBe(2);
+    expect(streamCalls).toBe(2);
+  });
+
+  it('returns 404 when resyncing an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/v1/activities/missing/resync',
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
   it('saves an owner description, pushes it to Strava, and keeps it after resync', async () => {
     const pushed: Array<{ id: string; description: string }> = [];
     const server = await build(
