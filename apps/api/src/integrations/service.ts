@@ -1,11 +1,17 @@
 import {
+  activityVisibilities,
   asJsonRecord,
+  formatProjectProgressNote,
   isHydratedStravaPayload,
   normalizeStravaSummary,
   parseStravaStreams,
   parseStravaSummary,
+  sports,
   stravaBackfillAfterUnix,
   trimStravaDetail,
+  type ActivityVisibility,
+  type Sport,
+  type Units,
 } from '@road-to/domain';
 import { decryptSecret, encryptSecret } from '../crypto/tokens.js';
 import { createOAuthState, readOAuthState } from './oauth-state.js';
@@ -46,6 +52,8 @@ export type IntegrationSecrets = {
   stravaClientSecret: string;
   redirectUri: string;
   webOrigin: string;
+  webhookCallbackUrl?: string;
+  webhookVerifyToken?: string;
 };
 
 export type IntegrationService = {
@@ -64,8 +72,42 @@ export type IntegrationService = {
   updateActivity(
     userId: string,
     activityId: string,
-    input: { description?: string | null; title?: string | null },
+    input: {
+      description?: string | null;
+      title?: string | null;
+      visibility?: ActivityVisibility;
+    },
   ): Promise<PublicActivityDetail>;
+  listProjects(userId: string): Promise<PublicProject[]>;
+  getProject(userId: string, projectId: string): Promise<PublicProjectDetail>;
+  createProject(
+    userId: string,
+    input: { name: string; sport: Sport },
+  ): Promise<PublicProjectDetail>;
+  readStravaWebhookChallenge(query: {
+    mode?: string;
+    challenge?: string;
+    verifyToken?: string;
+  }): { challenge: string } | null;
+  acceptStravaWebhook(event: {
+    objectType?: string;
+    aspectType?: string;
+    objectId?: number;
+    ownerId?: number;
+  }): Promise<void>;
+  ensureStravaWebhook(): Promise<void>;
+};
+
+export type PublicProject = {
+  id: string;
+  name: string;
+  sport: Sport;
+  totalDistanceM: number;
+  note: string | null;
+};
+
+export type PublicProjectDetail = PublicProject & {
+  activities: PublicActivity[];
 };
 
 function toPublic(row: {
@@ -129,6 +171,7 @@ function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
     calories: row.calories,
     mapPolyline: row.mapPolyline,
     description: row.description,
+    visibility: row.visibility,
     sources: [{ provider: 'strava' }],
     titleOverridden: row.titleOverridden,
     hydrated,
@@ -143,6 +186,8 @@ export function createIntegrationService(options: {
   now?: () => Date;
 }): IntegrationService {
   const now = options.now ?? (() => new Date());
+  const webhookCallbackUrl = options.secrets.webhookCallbackUrl ?? '';
+  const webhookVerifyToken = options.secrets.webhookVerifyToken ?? 'road-to-strava';
 
   async function validAccessToken(integration: {
     id: string;
@@ -198,13 +243,7 @@ export function createIntegrationService(options: {
           if (!normalized) {
             continue;
           }
-          await options.repo.upsertStravaActivity({
-            userId,
-            integrationId,
-            normalized,
-            payload:
-              typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : { raw },
-          });
+          await storeStravaActivity(userId, integration, normalized, raw);
           imported += 1;
         }
         if (batch.length < 100) {
@@ -217,6 +256,7 @@ export function createIntegrationService(options: {
         lastError: null,
         status: 'active',
       });
+      await applyProjectNotes(userId);
       return imported;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed';
@@ -261,6 +301,150 @@ export function createIntegrationService(options: {
     });
     const updated = await options.repo.getActivityById(userId, row.id);
     return toActivityDetail(updated ?? row);
+  }
+
+  async function storeStravaActivity(
+    userId: string,
+    integration: {
+      id: string;
+      accessTokenEnc: string;
+      refreshTokenEnc: string;
+      expiresAt: Date;
+    },
+    normalized: NonNullable<ReturnType<typeof normalizeStravaSummary>>,
+    raw: unknown,
+  ): Promise<void> {
+    const existing = await options.repo.findActivityByExternalId(userId, normalized.externalId);
+    const alreadyFetched = existing ? isHydratedStravaPayload(asJsonRecord(existing.payload)) : false;
+    if (!alreadyFetched && options.strava) {
+      const accessToken = await validAccessToken(integration);
+      const activity = await options.strava.getActivity(accessToken, normalized.externalId);
+      const streams = await options.strava.getStreams(accessToken, normalized.externalId);
+      const parsed = parseStravaSummary(activity);
+      const detailed = parsed ? normalizeStravaSummary(parsed) : null;
+      if (detailed) {
+        const streamDto = parseStravaStreams(streams);
+        await options.repo.upsertStravaActivity({
+          userId,
+          integrationId: integration.id,
+          normalized: {
+            ...detailed,
+            hasGps: detailed.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
+          },
+          payload: { activity: trimStravaDetail(activity), streams },
+        });
+        return;
+      }
+    }
+    await options.repo.upsertStravaActivity({
+      userId,
+      integrationId: integration.id,
+      normalized,
+      payload: typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : { raw },
+    });
+  }
+
+  async function fetchStravaActivityById(
+    userId: string,
+    integration: {
+      id: string;
+      accessTokenEnc: string;
+      refreshTokenEnc: string;
+      expiresAt: Date;
+    },
+    externalId: string,
+  ): Promise<void> {
+    if (!options.strava) {
+      throw new StravaNotConfiguredError();
+    }
+    const accessToken = await validAccessToken(integration);
+    const activity = await options.strava.getActivity(accessToken, externalId);
+    const streams = await options.strava.getStreams(accessToken, externalId);
+    const parsed = parseStravaSummary(activity);
+    const normalized = parsed ? normalizeStravaSummary(parsed) : null;
+    if (!normalized) {
+      return;
+    }
+    const streamDto = parseStravaStreams(streams);
+    await options.repo.upsertStravaActivity({
+      userId,
+      integrationId: integration.id,
+      normalized: {
+        ...normalized,
+        hasGps: normalized.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
+      },
+      payload: { activity: trimStravaDetail(activity), streams },
+    });
+  }
+
+  function projectView(
+    project: { id: string; name: string; sport: Sport },
+    activities: PublicActivity[],
+    units: Units,
+  ): PublicProjectDetail {
+    const matching = activities.filter((activity) => activity.sport === project.sport);
+    const totalDistanceM = matching.reduce((sum, activity) => sum + (activity.distanceM ?? 0), 0);
+    const note =
+      matching.length > 0 ? formatProjectProgressNote(project.name, totalDistanceM, units) : null;
+    return {
+      id: project.id,
+      name: project.name,
+      sport: project.sport,
+      totalDistanceM,
+      note,
+      activities: matching,
+    };
+  }
+
+  async function applyProjectNotes(userId: string): Promise<void> {
+    const projects = await options.repo.listProjects(userId);
+    if (projects.length === 0) {
+      return;
+    }
+    const units = await options.repo.getUserUnits(userId);
+    const activities = await options.repo.listActivities(userId);
+    for (const project of projects) {
+      const view = projectView(project, activities, units);
+      if (!view.note) {
+        continue;
+      }
+      for (const activity of view.activities) {
+        await options.repo.linkProjectActivity(project.id, activity.id);
+        if (activity.description === view.note) {
+          continue;
+        }
+        const row = await options.repo.getActivityById(userId, activity.id);
+        if (!row) {
+          continue;
+        }
+        await options.repo.updateActivityFields(userId, activity.id, { description: view.note });
+        if (!options.strava) {
+          continue;
+        }
+        const integration = await options.repo.getById(userId, row.integrationId);
+        if (!integration || !hasStravaActivityWrite(integration.scopes)) {
+          continue;
+        }
+        try {
+          const accessToken = await validAccessToken(integration);
+          await options.strava.updateActivity(accessToken, row.externalId, {
+            description: view.note,
+          });
+        } catch {
+          // The local note is already saved. A later edit can push it again.
+        }
+      }
+    }
+  }
+
+  async function toPublicProject(userId: string, projectId: string): Promise<PublicProjectDetail> {
+    const project = await options.repo.getProject(userId, projectId);
+    if (!project) {
+      throw new ActivityNotFoundError();
+    }
+    const units = await options.repo.getUserUnits(userId);
+    const activities = await options.repo.listActivities(userId);
+    return projectView(project, activities, units);
   }
 
   return {
@@ -343,9 +527,16 @@ export function createIntegrationService(options: {
         description?: string | null;
         title?: string;
         titleOverridden?: boolean;
+        visibility?: ActivityVisibility;
       } = {};
       if ('description' in input) {
         fields.description = normalizeOwnerDescription(input.description ?? null);
+      }
+      if (
+        input.visibility &&
+        (activityVisibilities as readonly string[]).includes(input.visibility)
+      ) {
+        fields.visibility = input.visibility;
       }
       if ('title' in input) {
         const trimmed = input.title?.trim() ?? '';
@@ -376,6 +567,63 @@ export function createIntegrationService(options: {
       }
       return toActivityDetail(updated);
     },
+    async listProjects(userId) {
+      const units = await options.repo.getUserUnits(userId);
+      const activities = await options.repo.listActivities(userId);
+      const projects = await options.repo.listProjects(userId);
+      return projects.map((project) => {
+        const detail = projectView(project, activities, units);
+        return {
+          id: detail.id,
+          name: detail.name,
+          sport: detail.sport,
+          totalDistanceM: detail.totalDistanceM,
+          note: detail.note,
+        };
+      });
+    },
+    async getProject(userId, projectId) {
+      return toPublicProject(userId, projectId);
+    },
+    async createProject(userId, input) {
+      const name = input.name.trim();
+      if (!name || !(sports as readonly string[]).includes(input.sport)) {
+        throw new ActivityNotFoundError();
+      }
+      const project = await options.repo.createProject(userId, { name, sport: input.sport });
+      await applyProjectNotes(userId);
+      return toPublicProject(userId, project.id);
+    },
+    readStravaWebhookChallenge(query) {
+      if (query.mode !== 'subscribe' || !query.challenge) {
+        return null;
+      }
+      if (query.verifyToken !== webhookVerifyToken) {
+        return null;
+      }
+      return { challenge: query.challenge };
+    },
+    async acceptStravaWebhook(event) {
+      if (event.objectType !== 'activity' || event.aspectType !== 'create') {
+        return;
+      }
+      if (!event.objectId || !event.ownerId || !options.strava) {
+        return;
+      }
+      const integration = await options.repo.getIntegrationByExternalUserId(String(event.ownerId));
+      if (!integration) {
+        return;
+      }
+      await fetchStravaActivityById(integration.userId, integration, String(event.objectId));
+      await applyProjectNotes(integration.userId);
+    },
+    async ensureStravaWebhook() {
+      const callbackUrl = webhookCallbackUrl.trim();
+      if (!options.strava || !callbackUrl || !options.secrets.stravaClientId) {
+        return;
+      }
+      await options.strava.createWebhookSubscription(callbackUrl, webhookVerifyToken);
+    },
   };
 }
 
@@ -392,5 +640,11 @@ export function createUnavailableIntegrationService(): IntegrationService {
     getActivity: fail,
     resyncActivity: fail,
     updateActivity: fail,
+    listProjects: fail,
+    getProject: fail,
+    createProject: fail,
+    readStravaWebhookChallenge: () => null,
+    acceptStravaWebhook: fail,
+    ensureStravaWebhook: async () => undefined,
   };
 }

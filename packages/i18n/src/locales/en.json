@@ -54,13 +54,31 @@
     "titleError": "Could not save the title.",
     "useProviderTitle": "Use Strava title",
     "resyncActivity": "Refresh from Strava",
-    "resyncActivityError": "Could not refresh this activity."
+    "resyncActivityError": "Could not refresh this activity.",
+    "visibility": "Visibility",
+    "private": "Private",
+    "public": "Public",
+    "visibilityError": "Could not update visibility."
   },
   "projects": {
     "title": "Projects",
     "nameLabel": "Project name",
     "namePlaceholder": "e.g. Marathon",
+    "sportLabel": "Sport",
     "create": "Create project",
-    "openHint": "Create a project to focus the app on that goal."
+    "openHint": "New Strava activities in this sport are added on their own. The note is the project name and the total distance.",
+    "empty": "No projects yet.",
+    "total": "Total distance",
+    "note": "Note"
+  },
+  "sports": {
+    "run": "Run",
+    "ride": "Ride",
+    "swim": "Swim",
+    "walk": "Walk",
+    "hike": "Hike",
+    "ski": "Ski",
+    "strength": "Strength",
+    "other": "Other"
   }
 }

@@ -3,11 +3,13 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { AuthLike } from '../auth.js';
 import { requireUser } from '../session.js';
 import { errorSchema } from '../swagger.js';
+import { sports } from '@road-to/domain';
 import {
   ActivityNotFoundError,
   IntegrationNotFoundError,
   StravaNotConfiguredError,
   type IntegrationService,
+  type PublicProject,
 } from './service.js';
 
 const sessionSecurity = [{ sessionCookie: [] }];
@@ -41,6 +43,7 @@ const activitySchema = {
     'avgHr',
     'mapPolyline',
     'description',
+    'visibility',
     'sources',
   ],
   properties: {
@@ -56,6 +59,7 @@ const activitySchema = {
     avgHr: { type: ['integer', 'null'] },
     mapPolyline: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    visibility: { type: 'string', enum: ['private', 'public'] },
     sources: {
       type: 'array',
       items: {
@@ -355,6 +359,7 @@ export async function registerIntegrationRoutes(
           properties: {
             description: { type: ['string', 'null'], maxLength: 4000 },
             title: { type: ['string', 'null'], maxLength: 255 },
+            visibility: { type: 'string', enum: ['private', 'public'] },
           },
         },
         response: {
@@ -371,7 +376,11 @@ export async function registerIntegrationRoutes(
         return;
       }
       const { id } = request.params as { id: string };
-      const body = request.body as { description?: string | null; title?: string | null };
+      const body = request.body as {
+        description?: string | null;
+        title?: string | null;
+        visibility?: 'private' | 'public';
+      };
       try {
         return await integrations.updateActivity(user.id, id, body);
       } catch (error) {
@@ -413,4 +422,168 @@ export async function registerIntegrationRoutes(
       }
     },
   );
+
+  const projectSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'name', 'sport', 'totalDistanceM', 'note'],
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      sport: { type: 'string', enum: [...sports] },
+      totalDistanceM: { type: 'number' },
+      note: { type: ['string', 'null'] },
+    },
+  } as const;
+
+  const projectDetailSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: [...projectSchema.required, 'activities'],
+    properties: {
+      ...projectSchema.properties,
+      activities: { type: 'array', items: activitySchema },
+    },
+  } as const;
+
+  app.get(
+    '/v1/projects',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Projects for the signed-in user',
+        security: sessionSecurity,
+        response: {
+          200: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['projects'],
+            properties: { projects: { type: 'array', items: projectSchema } },
+          },
+          401: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      try {
+        return { projects: await integrations.listProjects(user.id) };
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.post(
+    '/v1/projects',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Create a project and write progress notes for its sport',
+        security: sessionSecurity,
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name', 'sport'],
+          properties: {
+            name: { type: 'string', minLength: 1, maxLength: 80 },
+            sport: { type: 'string', enum: [...sports] },
+          },
+        },
+        response: {
+          200: projectDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const body = request.body as { name: string; sport: PublicProject['sport'] };
+      try {
+        return await integrations.createProject(user.id, body);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.get(
+    '/v1/projects/:id',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'One project and the activities of its sport',
+        security: sessionSecurity,
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: projectDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id } = request.params as { id: string };
+      try {
+        return await integrations.getProject(user.id, id);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.get('/v1/webhooks/strava', async (request, reply) => {
+    const query = request.query as {
+      'hub.mode'?: string;
+      'hub.challenge'?: string;
+      'hub.verify_token'?: string;
+    };
+    const result = integrations.readStravaWebhookChallenge({
+      mode: query['hub.mode'],
+      challenge: query['hub.challenge'],
+      verifyToken: query['hub.verify_token'],
+    });
+    if (!result) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+    return reply.send({ 'hub.challenge': result.challenge });
+  });
+
+  app.post('/v1/webhooks/strava', async (request, reply) => {
+    const body = request.body as {
+      object_type?: string;
+      aspect_type?: string;
+      object_id?: number;
+      owner_id?: number;
+    };
+    try {
+      await integrations.acceptStravaWebhook({
+        objectType: body.object_type,
+        aspectType: body.aspect_type,
+        objectId: body.object_id,
+        ownerId: body.owner_id,
+      });
+    } catch (error) {
+      request.log.error(error);
+    }
+    return reply.status(200).send({ ok: true });
+  });
 }

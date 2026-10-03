@@ -92,6 +92,7 @@ describe('createApiClient', () => {
       avgSpeedMps: 2.91,
       calories: 640,
       description: null,
+      visibility: 'private',
       hydrated: true,
       titleOverridden: false,
       streams: null,
@@ -136,6 +137,19 @@ describe('createApiClient', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Tempo' }),
+    });
+  });
+
+  it('patches activity visibility', async () => {
+    const detail = { id: 'act_1', visibility: 'public' as const };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.updateActivity('act_1', { visibility: 'public' })).resolves.toEqual(detail);
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
+      credentials: 'include',
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ visibility: 'public' }),
     });
   });
 

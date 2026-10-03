@@ -149,6 +149,12 @@ export function AppPage() {
                     </time>
                     <span className="mx-2">·</span>
                     <span className="capitalize">{activity.sport}</span>
+                    <span className="mx-2">·</span>
+                    <span>
+                      {activity.visibility === 'public'
+                        ? t('activities.public')
+                        : t('activities.private')}
+                    </span>
                   </p>
                   {activity.description ? (
                     <p className="mt-1 text-sm text-muted">{activity.description}</p>

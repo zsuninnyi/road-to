@@ -17,11 +17,8 @@ export type StravaClient = {
   ): Promise<unknown[]>;
   getActivity(accessToken: string, id: string): Promise<unknown>;
   getStreams(accessToken: string, id: string): Promise<unknown>;
-  updateActivity(
-    accessToken: string,
-    id: string,
-    input: { description: string },
-  ): Promise<unknown>;
+  updateActivity(accessToken: string, id: string, input: { description: string }): Promise<unknown>;
+  createWebhookSubscription(callbackUrl: string, verifyToken: string): Promise<void>;
 };
 
 export class StravaHttpError extends Error {
@@ -142,6 +139,27 @@ export function createStravaHttpClient(options: {
         throw new StravaHttpError(response.status, 'Strava activity update failed');
       }
       return response.json() as Promise<unknown>;
+    },
+    async createWebhookSubscription(callbackUrl, verifyToken) {
+      const body = new URLSearchParams({
+        client_id: options.clientId,
+        client_secret: options.clientSecret,
+        callback_url: callbackUrl,
+        verify_token: verifyToken,
+      });
+      const response = await fetchFn('https://www.strava.com/api/v3/push_subscriptions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      if (response.ok) {
+        return;
+      }
+      const text = await response.text();
+      if (response.status === 400 && text.toLowerCase().includes('already exists')) {
+        return;
+      }
+      throw new StravaHttpError(response.status, 'Strava webhook subscription failed');
     },
   };
 }

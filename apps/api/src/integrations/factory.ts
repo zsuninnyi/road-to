@@ -6,6 +6,8 @@ import {
   getAuthSecret,
   getStravaCredentials,
   getStravaRedirectUri,
+  getStravaWebhookCallbackUrl,
+  getStravaWebhookVerifyToken,
   getTokenEncryptionKeySource,
 } from '../env.js';
 import { createKyselyIntegrationRepository } from './kysely-repository.js';
@@ -25,6 +27,8 @@ export function createConfiguredIntegrationService(db: Kysely<Database>): Integr
       stravaClientSecret: strava.clientSecret,
       redirectUri: getStravaRedirectUri(),
       webOrigin: getAuthBaseUrl(),
+      webhookCallbackUrl: getStravaWebhookCallbackUrl(),
+      webhookVerifyToken: getStravaWebhookVerifyToken(),
     },
   });
 }

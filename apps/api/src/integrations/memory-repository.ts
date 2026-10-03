@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { isHydratedStravaPayload, type Sport } from '@road-to/domain';
+import { isHydratedStravaPayload, type ActivityVisibility, type Sport } from '@road-to/domain';
 import type {
   ActivityRecord,
   IntegrationRecord,
   IntegrationRepository,
+  ProjectRecord,
   PublicActivity,
   UpsertIntegrationInput,
 } from './types.js';
@@ -27,6 +28,7 @@ type StoredActivity = {
   calories: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
 };
 
 type StoredSource = {
@@ -52,6 +54,7 @@ function toPublic(row: StoredActivity): PublicActivity {
     avgHr: row.avgHr,
     mapPolyline: row.mapPolyline,
     description: row.description,
+    visibility: row.visibility,
     sources: [{ provider: 'strava' }],
   };
 }
@@ -60,6 +63,8 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
   const integrations = new Map<string, IntegrationRecord>();
   const activities = new Map<string, StoredActivity>();
   const sources = new Map<string, StoredSource>();
+  const projects = new Map<string, ProjectRecord>();
+  const projectActivities = new Set<string>();
 
   function clone(row: IntegrationRecord): IntegrationRecord {
     return {
@@ -163,6 +168,7 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         calories: input.normalized.calories,
         mapPolyline: input.normalized.mapPolyline,
         description: existingActivity?.description ?? null,
+        visibility: existingActivity?.visibility ?? 'private',
       });
       sources.set(key, {
         id: sourceId,
@@ -202,9 +208,53 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         ...row,
         ...(fields.description !== undefined ? { description: fields.description } : {}),
         ...(fields.title !== undefined ? { title: fields.title } : {}),
-        ...(fields.titleOverridden !== undefined ? { titleOverridden: fields.titleOverridden } : {}),
+        ...(fields.titleOverridden !== undefined
+          ? { titleOverridden: fields.titleOverridden }
+          : {}),
+        ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
       });
       return this.getActivityById(userId, id);
+    },
+    async findActivityByExternalId(userId, externalId) {
+      const source = [...sources.values()].find(
+        (item) => item.provider === 'strava' && item.externalId === externalId,
+      );
+      if (!source) {
+        return null;
+      }
+      return this.getActivityById(userId, source.activityId);
+    },
+    async getIntegrationByExternalUserId(externalUserId) {
+      const row = [...integrations.values()].find(
+        (item) => item.provider === 'strava' && item.externalUserId === externalUserId,
+      );
+      return row ? clone(row) : null;
+    },
+    async getUserUnits() {
+      return 'metric';
+    },
+    async listProjects(userId) {
+      return [...projects.values()].filter((project) => project.userId === userId);
+    },
+    async getProject(userId, id) {
+      const project = projects.get(id);
+      if (!project || project.userId !== userId) {
+        return null;
+      }
+      return project;
+    },
+    async createProject(userId, input) {
+      const project: ProjectRecord = {
+        id: randomUUID(),
+        userId,
+        name: input.name,
+        sport: input.sport,
+      };
+      projects.set(project.id, project);
+      return project;
+    },
+    async linkProjectActivity(projectId, activityId) {
+      projectActivities.add(`${projectId}:${activityId}`);
     },
   };
 }

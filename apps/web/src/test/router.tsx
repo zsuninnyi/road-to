@@ -80,6 +80,7 @@ export function stubSession(
           const body = JSON.parse(String(init?.body ?? '{}')) as {
             description?: string | null;
             title?: string | null;
+            visibility?: 'private' | 'public';
           };
           const next = { ...options.activity };
           if (body.description !== undefined) {
@@ -94,6 +95,9 @@ export function stubSession(
               next.title = trimmed;
               next.titleOverridden = true;
             }
+          }
+          if (body.visibility === 'public' || body.visibility === 'private') {
+            next.visibility = body.visibility;
           }
           options.activity = next;
           if (options.activities) {
@@ -125,6 +129,43 @@ export function stubSession(
           ok: true,
           status: 200,
           json: async () => ({ activities: options.activities ?? [] }),
+        };
+      }
+      if (url.includes('/v1/projects')) {
+        if (method === 'POST') {
+          const body = JSON.parse(String(init?.body ?? '{}')) as { name?: string; sport?: string };
+          const project = {
+            id: 'project_1',
+            name: body.name ?? 'Project',
+            sport: body.sport ?? 'run',
+            totalDistanceM: 0,
+            note: null,
+            activities: [],
+          };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => project,
+          };
+        }
+        if (/\/v1\/projects\/[^/?]+/.test(url)) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: 'project_1',
+              name: 'Marathon',
+              sport: 'run',
+              totalDistanceM: 0,
+              note: null,
+              activities: [],
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ projects: [] }),
         };
       }
       if (url.includes('/health')) {

@@ -109,6 +109,7 @@ function createFakeStrava(
       options.onUpdateActivity?.(id, input);
       return { id: Number(id), description: input.description };
     },
+    createWebhookSubscription: async () => undefined,
   };
 }
 
@@ -194,10 +195,11 @@ describe('Strava integrations', () => {
           distanceM: 10200,
           movingTimeS: 3500,
           elapsedTimeS: 3600,
-          elevationGainM: null,
-          avgHr: null,
+          elevationGainM: 80,
+          avgHr: 148,
           mapPolyline: '_p~iF~ps|U',
           description: null,
+          visibility: 'private',
           sources: [{ provider: 'strava' }],
         },
       ],
@@ -448,6 +450,41 @@ describe('Strava integrations', () => {
     expect(afterResync.json()).toMatchObject({ description: 'Felt easy' });
   });
 
+  it('marks an activity public and keeps that after resync', async () => {
+    const server = await build();
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(listed.json()).toMatchObject({
+      activities: [{ id, visibility: 'private' }],
+    });
+
+    const patched = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { visibility: 'public' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ id, visibility: 'public' });
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(afterResync.json()).toMatchObject({ visibility: 'public' });
+  });
+
   it('overrides the title and restores the provider title when cleared', async () => {
     const activities = [{ ...sampleActivity }];
     const server = await build(signedIn, createFakeStrava(activities));
@@ -482,6 +519,7 @@ describe('Strava integrations', () => {
     const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
     expect(afterResync.json()).toMatchObject({ title: 'Tempo', titleOverridden: true });
 
+    await server.inject({ method: 'POST', url: `/v1/activities/${id}/resync` });
     const cleared = await server.inject({
       method: 'PATCH',
       url: `/v1/activities/${id}`,
@@ -489,6 +527,69 @@ describe('Strava integrations', () => {
     });
     expect(cleared.statusCode).toBe(200);
     expect(cleared.json()).toMatchObject({ title: 'Easy Run', titleOverridden: false });
+  });
+
+  it('writes the project name and sport total onto activities, including a new Strava activity', async () => {
+    const pushed: string[] = [];
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onUpdateActivity: (_id, input) => {
+          pushed.push(input.description);
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const created = await server.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      payload: { name: 'Road to Marathon', sport: 'run' },
+    });
+    expect(created.statusCode).toBe(200);
+    expect(created.json()).toMatchObject({
+      name: 'Road to Marathon',
+      sport: 'run',
+      totalDistanceM: 10200,
+      note: 'Road to Marathon — 10.2 km',
+    });
+    expect(pushed).toEqual(['Road to Marathon — 10.2 km']);
+
+    const challenge = await server.inject({
+      method: 'GET',
+      url: '/v1/webhooks/strava?hub.mode=subscribe&hub.challenge=abc&hub.verify_token=road-to-strava',
+    });
+    expect(challenge.statusCode).toBe(200);
+    expect(challenge.json()).toEqual({ 'hub.challenge': 'abc' });
+
+    const webhook = await server.inject({
+      method: 'POST',
+      url: '/v1/webhooks/strava',
+      payload: {
+        object_type: 'activity',
+        aspect_type: 'create',
+        object_id: 111,
+        owner_id: 42,
+      },
+    });
+    expect(webhook.statusCode).toBe(200);
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const descriptions = (
+      listed.json() as { activities: { description: string | null }[] }
+    ).activities.map((activity) => activity.description);
+    expect(descriptions).toEqual([
+      'Road to Marathon — 20.4 km',
+      'Road to Marathon — 20.4 km',
+    ]);
   });
 
   it('returns 404 when patching an unknown activity', async () => {

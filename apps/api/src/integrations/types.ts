@@ -1,4 +1,10 @@
-import type { ActivityStreamsDto, NormalizedProviderActivity, Sport } from '@road-to/domain';
+import type {
+  ActivityStreamsDto,
+  ActivityVisibility,
+  NormalizedProviderActivity,
+  Sport,
+  Units,
+} from '@road-to/domain';
 
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'revoked';
 
@@ -37,6 +43,7 @@ export type PublicActivity = {
   avgHr: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
   sources: Array<{ provider: 'strava' }>;
 };
 
@@ -69,9 +76,17 @@ export type ActivityRecord = {
   calories: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
   integrationId: string;
   externalId: string;
   payload: unknown;
+};
+
+export type ProjectRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  sport: Sport;
 };
 
 export type UpsertIntegrationInput = {
@@ -111,6 +126,13 @@ export type IntegrationRepository = {
   }): Promise<void>;
   listActivities(userId: string): Promise<PublicActivity[]>;
   getActivityById(userId: string, id: string): Promise<ActivityRecord | null>;
+  findActivityByExternalId(userId: string, externalId: string): Promise<ActivityRecord | null>;
+  getIntegrationByExternalUserId(externalUserId: string): Promise<IntegrationRecord | null>;
+  getUserUnits(userId: string): Promise<Units>;
+  listProjects(userId: string): Promise<ProjectRecord[]>;
+  getProject(userId: string, id: string): Promise<ProjectRecord | null>;
+  createProject(userId: string, input: { name: string; sport: Sport }): Promise<ProjectRecord>;
+  linkProjectActivity(projectId: string, activityId: string): Promise<void>;
   updateActivityFields(
     userId: string,
     id: string,
@@ -118,6 +140,7 @@ export type IntegrationRepository = {
       description?: string | null;
       title?: string;
       titleOverridden?: boolean;
+      visibility?: ActivityVisibility;
     },
   ): Promise<ActivityRecord | null>;
 };
