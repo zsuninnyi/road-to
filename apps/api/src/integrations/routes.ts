@@ -7,6 +7,7 @@ import { sports } from '@road-to/domain';
 import {
   ActivityNotFoundError,
   IntegrationNotFoundError,
+  ProjectWindowError,
   StravaNotConfiguredError,
   type IntegrationService,
   type PublicProject,
@@ -116,6 +117,9 @@ async function sendServiceError(reply: FastifyReply, error: unknown): Promise<un
   }
   if (error instanceof IntegrationNotFoundError || error instanceof ActivityNotFoundError) {
     return reply.status(404).send({ error: 'Not found' });
+  }
+  if (error instanceof ProjectWindowError) {
+    return reply.status(400).send({ error: 'Invalid project date window' });
   }
   reply.log.error(error);
   return reply.status(503).send({ error: 'Service unavailable' });
@@ -426,11 +430,23 @@ export async function registerIntegrationRoutes(
   const projectSchema = {
     type: 'object',
     additionalProperties: false,
-    required: ['id', 'name', 'sport', 'totalDistanceM', 'note'],
+    required: [
+      'id',
+      'name',
+      'sport',
+      'visibility',
+      'windowStart',
+      'windowEnd',
+      'totalDistanceM',
+      'note',
+    ],
     properties: {
       id: { type: 'string' },
       name: { type: 'string' },
       sport: { type: 'string', enum: [...sports] },
+      visibility: { type: 'string', enum: ['private', 'public'] },
+      windowStart: { type: ['string', 'null'] },
+      windowEnd: { type: ['string', 'null'] },
       totalDistanceM: { type: 'number' },
       note: { type: ['string', 'null'] },
     },
@@ -439,10 +455,11 @@ export async function registerIntegrationRoutes(
   const projectDetailSchema = {
     type: 'object',
     additionalProperties: false,
-    required: [...projectSchema.required, 'activities'],
+    required: [...projectSchema.required, 'activities', 'excludedActivities'],
     properties: {
       ...projectSchema.properties,
       activities: { type: 'array', items: activitySchema },
+      excludedActivities: { type: 'array', items: activitySchema },
     },
   } as const;
 
@@ -492,10 +509,13 @@ export async function registerIntegrationRoutes(
           properties: {
             name: { type: 'string', minLength: 1, maxLength: 80 },
             sport: { type: 'string', enum: [...sports] },
+            windowStart: { type: ['string', 'null'] },
+            windowEnd: { type: ['string', 'null'] },
           },
         },
         response: {
           200: projectDetailSchema,
+          400: errorSchema,
           401: errorSchema,
           404: errorSchema,
           503: errorSchema,
@@ -507,7 +527,12 @@ export async function registerIntegrationRoutes(
       if (!user) {
         return;
       }
-      const body = request.body as { name: string; sport: PublicProject['sport'] };
+      const body = request.body as {
+        name: string;
+        sport: PublicProject['sport'];
+        windowStart?: string | null;
+        windowEnd?: string | null;
+      };
       try {
         return await integrations.createProject(user.id, body);
       } catch (error) {
@@ -544,6 +569,171 @@ export async function registerIntegrationRoutes(
       const { id } = request.params as { id: string };
       try {
         return await integrations.getProject(user.id, id);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.patch(
+    '/v1/projects/:id',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Update project visibility or its inclusive date window',
+        security: sessionSecurity,
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            visibility: { type: 'string', enum: ['private', 'public'] },
+            windowStart: { type: ['string', 'null'] },
+            windowEnd: { type: ['string', 'null'] },
+          },
+        },
+        response: {
+          200: projectDetailSchema,
+          400: errorSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id } = request.params as { id: string };
+      const body = request.body as {
+        visibility?: 'private' | 'public';
+        windowStart?: string | null;
+        windowEnd?: string | null;
+      };
+      try {
+        return await integrations.updateProject(user.id, id, body);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  const projectActivityParams = {
+    type: 'object',
+    required: ['id', 'activityId'],
+    properties: {
+      id: { type: 'string' },
+      activityId: { type: 'string' },
+    },
+  } as const;
+
+  app.delete(
+    '/v1/projects/:id/activities/:activityId',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Remove an activity from a project. The removal stays when rules run again.',
+        security: sessionSecurity,
+        params: projectActivityParams,
+        response: {
+          200: projectDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id, activityId } = request.params as { id: string; activityId: string };
+      try {
+        return await integrations.excludeProjectActivity(user.id, id, activityId);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  app.post(
+    '/v1/projects/:id/activities/:activityId',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Clear a sticky removal so the date window can include the activity again',
+        security: sessionSecurity,
+        params: projectActivityParams,
+        response: {
+          200: projectDetailSchema,
+          401: errorSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await requireUser(auth, request, reply);
+      if (!user) {
+        return;
+      }
+      const { id, activityId } = request.params as { id: string; activityId: string };
+      try {
+        return await integrations.restoreProjectActivity(user.id, id, activityId);
+      } catch (error) {
+        return sendServiceError(reply, error);
+      }
+    },
+  );
+
+  const publicProjectSchema = {
+    type: 'object',
+    additionalProperties: false,
+    required: [...projectDetailSchema.required, 'owner', 'units'],
+    properties: {
+      ...projectDetailSchema.properties,
+      units: { type: 'string', enum: ['metric', 'imperial'] },
+      owner: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'image'],
+        properties: {
+          name: { type: 'string' },
+          image: { type: ['string', 'null'] },
+        },
+      },
+    },
+  } as const;
+
+  app.get(
+    '/v1/public/projects/:id',
+    {
+      schema: {
+        tags: ['projects'],
+        summary: 'Public project, including every activity, when the project is public',
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: {
+          200: publicProjectSchema,
+          404: errorSchema,
+          503: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        return await integrations.getPublicProject(id);
       } catch (error) {
         return sendServiceError(reply, error);
       }

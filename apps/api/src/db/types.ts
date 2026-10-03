@@ -118,6 +118,9 @@ export type ProjectTable = {
   user_id: string;
   name: string;
   sport: Sport;
+  visibility: Generated<ActivityVisibility>;
+  window_start: string | null;
+  window_end: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 };
@@ -125,6 +128,7 @@ export type ProjectTable = {
 export type ProjectActivityTable = {
   project_id: string;
   activity_id: string;
+  excluded: Generated<boolean>;
 };
 
 export type Database = {

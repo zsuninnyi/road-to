@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppActivitiesActivityIdRouteImport } from './routes/app/activities/$activityId'
 import { Route as AppProjectsIndexRouteImport } from './routes/app/projects/index'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/app/projects/$projectId'
+import { Route as ShareProjectsProjectIdRouteImport } from './routes/share/projects/$projectId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => AppRoute,
 } as any)
+const ShareProjectsProjectIdRoute = ShareProjectsProjectIdRouteImport.update({
+  id: '/share/projects/$projectId',
+  path: '/share/projects/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/app/activities/$activityId': typeof AppActivitiesActivityIdRoute
   '/app/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/share/projects/$projectId': typeof ShareProjectsProjectIdRoute
   '/app/projects/': typeof AppProjectsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/app/activities/$activityId': typeof AppActivitiesActivityIdRoute
   '/app/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/share/projects/$projectId': typeof ShareProjectsProjectIdRoute
   '/app/projects': typeof AppProjectsIndexRoute
 }
 export interface FileRoutesById {
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/app/activities/$activityId': typeof AppActivitiesActivityIdRoute
   '/app/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/share/projects/$projectId': typeof ShareProjectsProjectIdRoute
   '/app/projects/': typeof AppProjectsIndexRoute
 }
 export interface FileRouteTypes {
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/activities/$activityId'
     | '/app/projects/$projectId'
+    | '/share/projects/$projectId'
     | '/app/projects/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/activities/$activityId'
     | '/app/projects/$projectId'
+    | '/share/projects/$projectId'
     | '/app/projects'
   id:
     | '__root__'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/activities/$activityId'
     | '/app/projects/$projectId'
+    | '/share/projects/$projectId'
     | '/app/projects/'
   fileRoutesById: FileRoutesById
 }
@@ -113,6 +125,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ShareProjectsProjectIdRoute: typeof ShareProjectsProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/share/projects/$projectId': {
+      id: '/share/projects/$projectId'
+      path: '/share/projects/$projectId'
+      fullPath: '/share/projects/$projectId'
+      preLoaderRoute: typeof ShareProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -189,6 +209,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  ShareProjectsProjectIdRoute: ShareProjectsProjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

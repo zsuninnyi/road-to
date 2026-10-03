@@ -64,7 +64,7 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
   const activities = new Map<string, StoredActivity>();
   const sources = new Map<string, StoredSource>();
   const projects = new Map<string, ProjectRecord>();
-  const projectActivities = new Set<string>();
+  const projectActivityExclusions = new Map<string, boolean>();
 
   function clone(row: IntegrationRecord): IntegrationRecord {
     return {
@@ -249,12 +249,50 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         userId,
         name: input.name,
         sport: input.sport,
+        visibility: 'private',
+        windowStart: input.windowStart,
+        windowEnd: input.windowEnd,
       };
       projects.set(project.id, project);
       return project;
     },
+    async findProject(id) {
+      return projects.get(id) ?? null;
+    },
+    async getPublicUser() {
+      return { name: 'Viktor', image: null };
+    },
+    async updateProjectFields(userId, id, fields) {
+      const project = projects.get(id);
+      if (!project || project.userId !== userId) {
+        return null;
+      }
+      const next: ProjectRecord = {
+        ...project,
+        ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
+        ...(fields.windowStart !== undefined ? { windowStart: fields.windowStart } : {}),
+        ...(fields.windowEnd !== undefined ? { windowEnd: fields.windowEnd } : {}),
+      };
+      projects.set(id, next);
+      return next;
+    },
     async linkProjectActivity(projectId, activityId) {
-      projectActivities.add(`${projectId}:${activityId}`);
+      const key = `${projectId}:${activityId}`;
+      if (!projectActivityExclusions.has(key)) {
+        projectActivityExclusions.set(key, false);
+      }
+    },
+    async listExcludedActivityIds(projectId) {
+      const prefix = `${projectId}:`;
+      return [...projectActivityExclusions.entries()]
+        .filter(([key, excluded]) => excluded && key.startsWith(prefix))
+        .map(([key]) => key.slice(prefix.length));
+    },
+    async excludeProjectActivity(projectId, activityId) {
+      projectActivityExclusions.set(`${projectId}:${activityId}`, true);
+    },
+    async restoreProjectActivity(projectId, activityId) {
+      projectActivityExclusions.set(`${projectId}:${activityId}`, false);
     },
   };
 }

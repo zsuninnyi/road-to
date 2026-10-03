@@ -1,7 +1,7 @@
-import { formatDistanceMeters, formatDurationSeconds, formatPace } from '@road-to/domain';
 import type { Activity, ConnectStravaResponse, Integration } from '@road-to/api-client';
+import { ActivityListItem } from '../../activities/activity-list-item';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, createFileRoute } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { api, meQueryOptions } from '../../auth/session';
 
@@ -119,59 +119,9 @@ export function AppPage() {
         <p className="mt-8 text-sm text-muted">{t('activities.empty')}</p>
       ) : (
         <ul className="mt-8 divide-y divide-line border-t border-line">
-          {activities.map((activity: Activity) => {
-            const pace =
-              activity.sport === 'run' && activity.movingTimeS != null && activity.distanceM != null
-                ? formatPace(activity.movingTimeS, activity.distanceM, units)
-                : null;
-            return (
-              <li
-                key={activity.id}
-                className="flex flex-wrap items-baseline justify-between gap-2 py-3"
-              >
-                <div>
-                  <p className="font-medium">
-                    <Link
-                      to="/app/activities/$activityId"
-                      params={{ activityId: activity.id }}
-                      className="hover:text-accent"
-                    >
-                      {activity.title}
-                    </Link>
-                  </p>
-                  <p className="text-sm text-muted">
-                    <time dateTime={activity.startedAt}>
-                      {new Intl.DateTimeFormat('en', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }).format(new Date(activity.startedAt))}
-                    </time>
-                    <span className="mx-2">·</span>
-                    <span className="capitalize">{activity.sport}</span>
-                    <span className="mx-2">·</span>
-                    <span>
-                      {activity.visibility === 'public'
-                        ? t('activities.public')
-                        : t('activities.private')}
-                    </span>
-                  </p>
-                  {activity.description ? (
-                    <p className="mt-1 text-sm text-muted">{activity.description}</p>
-                  ) : null}
-                </div>
-                <p className="text-sm text-muted">
-                  {activity.distanceM != null
-                    ? formatDistanceMeters(activity.distanceM, units)
-                    : '—'}
-                  {activity.movingTimeS != null
-                    ? ` · ${formatDurationSeconds(activity.movingTimeS)}`
-                    : ''}
-                  {pace ? ` · ${pace}` : ''}
-                </p>
-              </li>
-            );
-          })}
+          {activities.map((activity: Activity) => (
+            <ActivityListItem key={activity.id} activity={activity} units={units} />
+          ))}
         </ul>
       )}
 

@@ -16,6 +16,12 @@ export function formatBrandTitle(brand: string, projectName?: string | null): st
 
 export { sortProjectActivityList, type ProjectListActivity } from './project-list.js';
 export { formatProjectProgressNote } from './project-note.js';
+export {
+  activityMatchesProjectWindow,
+  readProjectWindow,
+  readProjectWindowDate,
+  type ProjectWindow,
+} from './project-window.js';
 export { sports, mapStravaSport, type Sport } from './sports.js';
 export {
   formatCalories,

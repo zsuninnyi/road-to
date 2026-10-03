@@ -1,8 +1,10 @@
 import {
+  activityMatchesProjectWindow,
   activityVisibilities,
   asJsonRecord,
   formatProjectProgressNote,
   isHydratedStravaPayload,
+  readProjectWindow,
   normalizeStravaSummary,
   parseStravaStreams,
   parseStravaSummary,
@@ -45,6 +47,13 @@ export class ActivityNotFoundError extends Error {
   }
 }
 
+export class ProjectWindowError extends Error {
+  constructor() {
+    super('Invalid project date window');
+    this.name = 'ProjectWindowError';
+  }
+}
+
 export type IntegrationSecrets = {
   tokenKey: Buffer;
   oauthSecret: string;
@@ -82,8 +91,33 @@ export type IntegrationService = {
   getProject(userId: string, projectId: string): Promise<PublicProjectDetail>;
   createProject(
     userId: string,
-    input: { name: string; sport: Sport },
+    input: {
+      name: string;
+      sport: Sport;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+    },
   ): Promise<PublicProjectDetail>;
+  updateProject(
+    userId: string,
+    projectId: string,
+    input: {
+      visibility?: ActivityVisibility;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+    },
+  ): Promise<PublicProjectDetail>;
+  excludeProjectActivity(
+    userId: string,
+    projectId: string,
+    activityId: string,
+  ): Promise<PublicProjectDetail>;
+  restoreProjectActivity(
+    userId: string,
+    projectId: string,
+    activityId: string,
+  ): Promise<PublicProjectDetail>;
+  getPublicProject(projectId: string): Promise<PublicProjectShare>;
   readStravaWebhookChallenge(query: {
     mode?: string;
     challenge?: string;
@@ -102,12 +136,21 @@ export type PublicProject = {
   id: string;
   name: string;
   sport: Sport;
+  visibility: ActivityVisibility;
+  windowStart: string | null;
+  windowEnd: string | null;
   totalDistanceM: number;
   note: string | null;
 };
 
 export type PublicProjectDetail = PublicProject & {
   activities: PublicActivity[];
+  excludedActivities: PublicActivity[];
+};
+
+export type PublicProjectShare = PublicProjectDetail & {
+  owner: { name: string; image: string | null };
+  units: Units;
 };
 
 function toPublic(row: {
@@ -315,7 +358,9 @@ export function createIntegrationService(options: {
     raw: unknown,
   ): Promise<void> {
     const existing = await options.repo.findActivityByExternalId(userId, normalized.externalId);
-    const alreadyFetched = existing ? isHydratedStravaPayload(asJsonRecord(existing.payload)) : false;
+    const alreadyFetched = existing
+      ? isHydratedStravaPayload(asJsonRecord(existing.payload))
+      : false;
     if (!alreadyFetched && options.strava) {
       const accessToken = await validAccessToken(integration);
       const activity = await options.strava.getActivity(accessToken, normalized.externalId);
@@ -378,22 +423,56 @@ export function createIntegrationService(options: {
   }
 
   function projectView(
-    project: { id: string; name: string; sport: Sport },
+    project: {
+      id: string;
+      name: string;
+      sport: Sport;
+      visibility: ActivityVisibility;
+      windowStart: string | null;
+      windowEnd: string | null;
+    },
     activities: PublicActivity[],
     units: Units,
+    excludedIds: ReadonlySet<string>,
   ): PublicProjectDetail {
-    const matching = activities.filter((activity) => activity.sport === project.sport);
-    const totalDistanceM = matching.reduce((sum, activity) => sum + (activity.distanceM ?? 0), 0);
+    const inWindow = activities.filter(
+      (activity) =>
+        activity.sport === project.sport &&
+        activityMatchesProjectWindow(activity.startedAt, project.windowStart, project.windowEnd),
+    );
+    const included = inWindow.filter((activity) => !excludedIds.has(activity.id));
+    const excludedActivities = inWindow.filter((activity) => excludedIds.has(activity.id));
+    const totalDistanceM = included.reduce((sum, activity) => sum + (activity.distanceM ?? 0), 0);
     const note =
-      matching.length > 0 ? formatProjectProgressNote(project.name, totalDistanceM, units) : null;
+      included.length > 0 ? formatProjectProgressNote(project.name, totalDistanceM, units) : null;
     return {
       id: project.id,
       name: project.name,
       sport: project.sport,
+      visibility: project.visibility,
+      windowStart: project.windowStart,
+      windowEnd: project.windowEnd,
       totalDistanceM,
       note,
-      activities: matching,
+      activities: included,
+      excludedActivities,
     };
+  }
+
+  async function viewProject(
+    project: {
+      id: string;
+      name: string;
+      sport: Sport;
+      visibility: ActivityVisibility;
+      windowStart: string | null;
+      windowEnd: string | null;
+    },
+    activities: PublicActivity[],
+    units: Units,
+  ): Promise<PublicProjectDetail> {
+    const excludedIds = new Set(await options.repo.listExcludedActivityIds(project.id));
+    return projectView(project, activities, units, excludedIds);
   }
 
   async function applyProjectNotes(userId: string): Promise<void> {
@@ -404,7 +483,7 @@ export function createIntegrationService(options: {
     const units = await options.repo.getUserUnits(userId);
     const activities = await options.repo.listActivities(userId);
     for (const project of projects) {
-      const view = projectView(project, activities, units);
+      const view = await viewProject(project, activities, units);
       if (!view.note) {
         continue;
       }
@@ -444,7 +523,7 @@ export function createIntegrationService(options: {
     }
     const units = await options.repo.getUserUnits(userId);
     const activities = await options.repo.listActivities(userId);
-    return projectView(project, activities, units);
+    return viewProject(project, activities, units);
   }
 
   return {
@@ -571,16 +650,21 @@ export function createIntegrationService(options: {
       const units = await options.repo.getUserUnits(userId);
       const activities = await options.repo.listActivities(userId);
       const projects = await options.repo.listProjects(userId);
-      return projects.map((project) => {
-        const detail = projectView(project, activities, units);
-        return {
+      const listed: PublicProject[] = [];
+      for (const project of projects) {
+        const detail = await viewProject(project, activities, units);
+        listed.push({
           id: detail.id,
           name: detail.name,
           sport: detail.sport,
+          visibility: detail.visibility,
+          windowStart: detail.windowStart,
+          windowEnd: detail.windowEnd,
           totalDistanceM: detail.totalDistanceM,
           note: detail.note,
-        };
-      });
+        });
+      }
+      return listed;
     },
     async getProject(userId, projectId) {
       return toPublicProject(userId, projectId);
@@ -590,9 +674,93 @@ export function createIntegrationService(options: {
       if (!name || !(sports as readonly string[]).includes(input.sport)) {
         throw new ActivityNotFoundError();
       }
-      const project = await options.repo.createProject(userId, { name, sport: input.sport });
+      const window = readProjectWindow(input.windowStart, input.windowEnd);
+      if (!window) {
+        throw new ProjectWindowError();
+      }
+      const project = await options.repo.createProject(userId, {
+        name,
+        sport: input.sport,
+        windowStart: window.windowStart,
+        windowEnd: window.windowEnd,
+      });
       await applyProjectNotes(userId);
       return toPublicProject(userId, project.id);
+    },
+    async updateProject(userId, projectId, input) {
+      const existing = await options.repo.getProject(userId, projectId);
+      if (!existing) {
+        throw new ActivityNotFoundError();
+      }
+      const fields: {
+        visibility?: ActivityVisibility;
+        windowStart?: string | null;
+        windowEnd?: string | null;
+      } = {};
+      if (
+        input.visibility &&
+        (activityVisibilities as readonly string[]).includes(input.visibility)
+      ) {
+        fields.visibility = input.visibility;
+      }
+      if ('windowStart' in input || 'windowEnd' in input) {
+        const window = readProjectWindow(
+          'windowStart' in input ? input.windowStart : existing.windowStart,
+          'windowEnd' in input ? input.windowEnd : existing.windowEnd,
+        );
+        if (!window) {
+          throw new ProjectWindowError();
+        }
+        fields.windowStart = window.windowStart;
+        fields.windowEnd = window.windowEnd;
+      }
+      if (Object.keys(fields).length > 0) {
+        const updated = await options.repo.updateProjectFields(userId, projectId, fields);
+        if (!updated) {
+          throw new ActivityNotFoundError();
+        }
+        await applyProjectNotes(userId);
+      }
+      return toPublicProject(userId, projectId);
+    },
+    async excludeProjectActivity(userId, projectId, activityId) {
+      const project = await options.repo.getProject(userId, projectId);
+      const activity = await options.repo.getActivityById(userId, activityId);
+      if (!project || !activity || activity.sport !== project.sport) {
+        throw new ActivityNotFoundError();
+      }
+      await options.repo.excludeProjectActivity(projectId, activityId);
+      await applyProjectNotes(userId);
+      return toPublicProject(userId, projectId);
+    },
+    async restoreProjectActivity(userId, projectId, activityId) {
+      const project = await options.repo.getProject(userId, projectId);
+      const activity = await options.repo.getActivityById(userId, activityId);
+      if (!project || !activity) {
+        throw new ActivityNotFoundError();
+      }
+      await options.repo.restoreProjectActivity(projectId, activityId);
+      await applyProjectNotes(userId);
+      return toPublicProject(userId, projectId);
+    },
+    async getPublicProject(projectId) {
+      const project = await options.repo.findProject(projectId);
+      if (!project || project.visibility !== 'public') {
+        throw new ActivityNotFoundError();
+      }
+      const owner = await options.repo.getPublicUser(project.userId);
+      if (!owner) {
+        throw new ActivityNotFoundError();
+      }
+      const units = await options.repo.getUserUnits(project.userId);
+      const activities = await options.repo.listActivities(project.userId);
+      const view = await viewProject(project, activities, units);
+      return {
+        owner,
+        units,
+        ...view,
+        excludedActivities: [],
+      };
     },
     readStravaWebhookChallenge(query) {
       if (query.mode !== 'subscribe' || !query.challenge) {
@@ -643,6 +811,10 @@ export function createUnavailableIntegrationService(): IntegrationService {
     listProjects: fail,
     getProject: fail,
     createProject: fail,
+    updateProject: fail,
+    excludeProjectActivity: fail,
+    restoreProjectActivity: fail,
+    getPublicProject: fail,
     readStravaWebhookChallenge: () => null,
     acceptStravaWebhook: fail,
     ensureStravaWebhook: async () => undefined,

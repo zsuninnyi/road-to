@@ -586,10 +586,163 @@ describe('Strava integrations', () => {
     const descriptions = (
       listed.json() as { activities: { description: string | null }[] }
     ).activities.map((activity) => activity.description);
-    expect(descriptions).toEqual([
-      'Road to Marathon — 20.4 km',
-      'Road to Marathon — 20.4 km',
-    ]);
+    expect(descriptions).toEqual(['Road to Marathon — 20.4 km', 'Road to Marathon — 20.4 km']);
+  });
+
+  it('shares a public project with every activity and hides a private one', async () => {
+    const server = await build();
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+    const created = await server.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      payload: { name: 'Road to Marathon', sport: 'run' },
+    });
+    const projectId = (created.json() as { id: string }).id;
+    expect(created.json()).toMatchObject({ visibility: 'private' });
+
+    const hidden = await server.inject({
+      method: 'GET',
+      url: `/v1/public/projects/${projectId}`,
+    });
+    expect(hidden.statusCode).toBe(404);
+
+    const published = await server.inject({
+      method: 'PATCH',
+      url: `/v1/projects/${projectId}`,
+      payload: { visibility: 'public' },
+    });
+    expect(published.statusCode).toBe(200);
+    expect(published.json()).toMatchObject({ visibility: 'public' });
+
+    const shared = await server.inject({
+      method: 'GET',
+      url: `/v1/public/projects/${projectId}`,
+    });
+    expect(shared.statusCode).toBe(200);
+    expect(shared.json()).toMatchObject({
+      owner: { name: 'Viktor', image: null },
+      units: 'metric',
+      name: 'Road to Marathon',
+      visibility: 'public',
+      totalDistanceM: 10200,
+      note: 'Road to Marathon — 10.2 km',
+      activities: [
+        {
+          title: 'Morning Run',
+          visibility: 'private',
+          description: 'Road to Marathon — 10.2 km',
+        },
+      ],
+    });
+  });
+
+  it('limits a project to its date window and keeps a removed activity out', async () => {
+    const march = {
+      ...sampleActivity,
+      id: 1,
+      name: 'March Run',
+      start_date: '2026-03-02T08:00:00Z',
+      distance: 5000,
+    };
+    const june = {
+      ...sampleActivity,
+      id: 2,
+      name: 'June Run',
+      start_date: '2026-06-02T08:00:00Z',
+      distance: 8000,
+    };
+    const server = await build(signedIn, createFakeStrava([march, june]));
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const created = await server.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      payload: {
+        name: 'Road to Marathon',
+        sport: 'run',
+        windowStart: '2026-01-01',
+        windowEnd: '2026-04-30',
+      },
+    });
+    expect(created.statusCode).toBe(200);
+    const createdBody = created.json() as {
+      id: string;
+      totalDistanceM: number;
+      note: string;
+      activities: { id: string; title: string }[];
+    };
+    expect(createdBody.totalDistanceM).toBe(5000);
+    expect(createdBody.note).toBe('Road to Marathon — 5.0 km');
+    expect(createdBody.activities.map((activity) => activity.title)).toEqual(['March Run']);
+
+    const invalid = await server.inject({
+      method: 'PATCH',
+      url: `/v1/projects/${createdBody.id}`,
+      payload: { windowStart: '2026-05-01', windowEnd: '2026-01-01' },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const removed = await server.inject({
+      method: 'DELETE',
+      url: `/v1/projects/${createdBody.id}/activities/${createdBody.activities[0]?.id}`,
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({
+      totalDistanceM: 0,
+      note: null,
+      activities: [],
+      excludedActivities: [{ title: 'March Run' }],
+    });
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({
+      method: 'GET',
+      url: `/v1/projects/${createdBody.id}`,
+    });
+    expect(afterResync.json()).toMatchObject({
+      activities: [],
+      excludedActivities: [{ title: 'March Run' }],
+    });
+
+    const restored = await server.inject({
+      method: 'POST',
+      url: `/v1/projects/${createdBody.id}/activities/${createdBody.activities[0]?.id}`,
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({
+      totalDistanceM: 5000,
+      activities: [{ title: 'March Run' }],
+      excludedActivities: [],
+    });
+  });
+
+  it('lets a guest reach a missing public project without a session', async () => {
+    const server = await build(null);
+    const response = await server.inject({
+      method: 'GET',
+      url: '/v1/public/projects/missing',
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it('returns 404 when patching an unknown activity', async () => {

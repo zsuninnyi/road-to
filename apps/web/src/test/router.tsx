@@ -131,6 +131,40 @@ export function stubSession(
           json: async () => ({ activities: options.activities ?? [] }),
         };
       }
+      if (url.includes('/v1/public/projects/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            owner: { name: 'Viktor', image: null },
+            units: 'metric',
+            id: 'project_1',
+            name: 'Marathon',
+            sport: 'run',
+            visibility: 'public',
+            totalDistanceM: 10200,
+            note: 'Marathon — 10.2 km',
+            activities: [
+              {
+                id: 'act_1',
+                sport: 'run',
+                title: 'Morning Run',
+                startedAt: '2026-09-20T06:00:00.000Z',
+                endedAt: '2026-09-20T07:00:00.000Z',
+                distanceM: 10200,
+                movingTimeS: 3500,
+                elapsedTimeS: 3600,
+                elevationGainM: 80,
+                avgHr: 148,
+                mapPolyline: null,
+                description: 'Marathon — 10.2 km',
+                visibility: 'private',
+                sources: [{ provider: 'strava' }],
+              },
+            ],
+          }),
+        };
+      }
       if (url.includes('/v1/projects')) {
         if (method === 'POST') {
           const body = JSON.parse(String(init?.body ?? '{}')) as { name?: string; sport?: string };
@@ -138,6 +172,7 @@ export function stubSession(
             id: 'project_1',
             name: body.name ?? 'Project',
             sport: body.sport ?? 'run',
+            visibility: 'private' as const,
             totalDistanceM: 0,
             note: null,
             activities: [],
@@ -156,9 +191,10 @@ export function stubSession(
               id: 'project_1',
               name: 'Marathon',
               sport: 'run',
-              totalDistanceM: 0,
+              visibility: 'private',
+              totalDistanceM: 10200,
               note: null,
-              activities: [],
+              activities: options.activities ?? [],
             }),
           };
         }

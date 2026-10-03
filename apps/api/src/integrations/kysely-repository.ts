@@ -423,18 +423,102 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           user_id: userId,
           name: input.name,
           sport: input.sport,
+          visibility: 'private',
+          window_start: input.windowStart,
+          window_end: input.windowEnd,
         })
         .execute();
-      return { id, userId, name: input.name, sport: input.sport };
+      return {
+        id,
+        userId,
+        name: input.name,
+        sport: input.sport,
+        visibility: 'private',
+        windowStart: input.windowStart,
+        windowEnd: input.windowEnd,
+      };
+    },
+    async findProject(id) {
+      const row = await db
+        .selectFrom('projects')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
+      return row ? toProject(row) : null;
+    },
+    async getPublicUser(userId) {
+      const row = await db
+        .selectFrom('user')
+        .select(['name', 'image'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+      if (!row) {
+        return null;
+      }
+      return { name: row.name, image: row.image };
+    },
+    async updateProjectFields(userId, id, fields) {
+      const updated = await db
+        .updateTable('projects')
+        .set({
+          ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
+          ...(fields.windowStart !== undefined ? { window_start: fields.windowStart } : {}),
+          ...(fields.windowEnd !== undefined ? { window_end: fields.windowEnd } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', id)
+        .where('user_id', '=', userId)
+        .returningAll()
+        .executeTakeFirst();
+      return updated ? toProject(updated) : null;
     },
     async linkProjectActivity(projectId, activityId) {
       await db
         .insertInto('project_activities')
-        .values({ project_id: projectId, activity_id: activityId })
+        .values({ project_id: projectId, activity_id: activityId, excluded: false })
         .onConflict((oc) => oc.columns(['project_id', 'activity_id']).doNothing())
         .execute();
     },
+    async listExcludedActivityIds(projectId) {
+      const rows = await db
+        .selectFrom('project_activities')
+        .select('activity_id')
+        .where('project_id', '=', projectId)
+        .where('excluded', '=', true)
+        .execute();
+      return rows.map((row) => row.activity_id);
+    },
+    async excludeProjectActivity(projectId, activityId) {
+      await db
+        .insertInto('project_activities')
+        .values({ project_id: projectId, activity_id: activityId, excluded: true })
+        .onConflict((oc) =>
+          oc.columns(['project_id', 'activity_id']).doUpdateSet({ excluded: true }),
+        )
+        .execute();
+    },
+    async restoreProjectActivity(projectId, activityId) {
+      await db
+        .updateTable('project_activities')
+        .set({ excluded: false })
+        .where('project_id', '=', projectId)
+        .where('activity_id', '=', activityId)
+        .execute();
+    },
   };
+}
+
+function calendarDate(value: unknown): string | null {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+  return null;
 }
 
 function toProject(row: {
@@ -442,11 +526,17 @@ function toProject(row: {
   user_id: string;
   name: string;
   sport: ProjectRecord['sport'];
+  visibility: ProjectRecord['visibility'];
+  window_start: unknown;
+  window_end: unknown;
 }): ProjectRecord {
   return {
     id: row.id,
     userId: row.user_id,
     name: row.name,
     sport: row.sport,
+    visibility: row.visibility === 'public' ? 'public' : 'private',
+    windowStart: calendarDate(row.window_start),
+    windowEnd: calendarDate(row.window_end),
   };
 }
