@@ -17,13 +17,15 @@ export function stubSession(
   user: MeUser | null,
   options: {
     integrations?: unknown[];
-    activities?: unknown[];
+    activities?: Array<Record<string, unknown>>;
+    activity?: Record<string, unknown>;
   } = {},
 ) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      const method = (init?.method ?? 'GET').toUpperCase();
       if (url.includes('/v1/me')) {
         if (!user) {
           return {
@@ -50,6 +52,72 @@ export function stubSession(
           ok: true,
           status: 200,
           json: async () => ({ integrations: options.integrations ?? [] }),
+        };
+      }
+      if (/\/v1\/activities\/[^/?]+/.test(url)) {
+        if (method === 'POST' && url.includes('/resync')) {
+          if (!options.activity) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({ error: 'Not found' }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
+        if (method === 'PATCH') {
+          if (!options.activity) {
+            return {
+              ok: false,
+              status: 404,
+              json: async () => ({ error: 'Not found' }),
+            };
+          }
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            description?: string | null;
+            title?: string | null;
+          };
+          const next = { ...options.activity };
+          if (body.description !== undefined) {
+            next.description = body.description;
+          }
+          if (body.title !== undefined) {
+            const trimmed = body.title?.trim() ?? '';
+            if (trimmed.length === 0) {
+              next.title = 'Morning Run';
+              next.titleOverridden = false;
+            } else {
+              next.title = trimmed;
+              next.titleOverridden = true;
+            }
+          }
+          options.activity = next;
+          if (options.activities) {
+            options.activities = options.activities.map((activity) =>
+              activity.id === next.id ? { ...activity, ...next } : activity,
+            );
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
+        if (options.activity) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => options.activity,
+          };
+        }
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: 'Not found' }),
         };
       }
       if (url.includes('/v1/activities')) {

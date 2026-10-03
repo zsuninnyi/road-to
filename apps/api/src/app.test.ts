@@ -131,6 +131,7 @@ describe('API', () => {
     expect(spec.paths['/health']).toBeDefined();
     expect(spec.paths['/v1/me']).toBeDefined();
     expect(spec.paths['/v1/activities']).toBeDefined();
+    expect(spec.paths['/v1/activities/{id}']).toBeDefined();
     expect(spec.paths['/v1/integrations/strava/connect']).toBeDefined();
     expect(spec.paths['/api/auth/*']).toBeUndefined();
     expect(spec.paths['/api/auth/sign-in/social']).toBeDefined();

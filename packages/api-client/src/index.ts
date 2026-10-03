@@ -48,7 +48,25 @@ export type Activity = {
   elevationGainM: number | null;
   avgHr: number | null;
   mapPolyline: string | null;
+  description: string | null;
   sources: Array<{ provider: 'strava' }>;
+};
+
+export type ActivityStreams = {
+  latlng: number[][] | null;
+  timeS: number[] | null;
+  altitudeM: number[] | null;
+  heartrate: number[] | null;
+};
+
+export type ActivityDetail = Activity & {
+  timezone: string | null;
+  maxHr: number | null;
+  avgSpeedMps: number | null;
+  calories: number | null;
+  titleOverridden: boolean;
+  hydrated: boolean;
+  streams: ActivityStreams | null;
 };
 
 export type ActivitiesResponse = {
@@ -106,6 +124,22 @@ export function createApiClient(options: ApiClientOptions) {
     },
     activities(): Promise<ActivitiesResponse> {
       return request<ActivitiesResponse>('/v1/activities');
+    },
+    activity(id: string): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}`);
+    },
+    resyncActivity(id: string): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}/resync`, { method: 'POST' });
+    },
+    updateActivity(
+      id: string,
+      input: { description?: string | null; title?: string | null },
+    ): Promise<ActivityDetail> {
+      return request<ActivityDetail>(`/v1/activities/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
     },
   };
 }

@@ -1,3 +1,5 @@
+export const stravaOAuthScopes = 'read,activity:read_all,activity:write';
+
 export type StravaTokenSet = {
   accessToken: string;
   refreshToken: string;
@@ -13,6 +15,13 @@ export type StravaClient = {
     accessToken: string,
     params: { afterUnix: number; page: number; perPage: number },
   ): Promise<unknown[]>;
+  getActivity(accessToken: string, id: string): Promise<unknown>;
+  getStreams(accessToken: string, id: string): Promise<unknown>;
+  updateActivity(
+    accessToken: string,
+    id: string,
+    input: { description: string },
+  ): Promise<unknown>;
 };
 
 export class StravaHttpError extends Error {
@@ -30,6 +39,7 @@ type TokenJson = {
   refresh_token?: string;
   expires_at?: number;
   athlete?: { id?: number };
+  scope?: string;
 };
 
 function parseToken(payload: TokenJson, requireAthlete: boolean): StravaTokenSet {
@@ -44,6 +54,9 @@ function parseToken(payload: TokenJson, requireAthlete: boolean): StravaTokenSet
     refreshToken: payload.refresh_token,
     expiresAt: new Date(payload.expires_at * 1000),
     athleteId: payload.athlete?.id ? String(payload.athlete.id) : '',
+    ...(typeof payload.scope === 'string' && payload.scope.length > 0
+      ? { scope: payload.scope }
+      : {}),
   };
 }
 
@@ -94,6 +107,41 @@ export function createStravaHttpClient(options: {
       }
       const json: unknown = await response.json();
       return Array.isArray(json) ? json : [];
+    },
+    async getActivity(accessToken, id) {
+      const response = await fetchFn(`https://www.strava.com/api/v3/activities/${id}`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        throw new StravaHttpError(response.status, 'Strava activity failed');
+      }
+      return response.json() as Promise<unknown>;
+    },
+    async getStreams(accessToken, id) {
+      const url = new URL(`https://www.strava.com/api/v3/activities/${id}/streams`);
+      url.searchParams.set('keys', 'latlng,time,altitude,heartrate');
+      url.searchParams.set('key_by_type', 'true');
+      const response = await fetchFn(url, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        throw new StravaHttpError(response.status, 'Strava streams failed');
+      }
+      return response.json() as Promise<unknown>;
+    },
+    async updateActivity(accessToken, id, input) {
+      const response = await fetchFn(`https://www.strava.com/api/v3/activities/${id}`, {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ description: input.description }),
+      });
+      if (!response.ok) {
+        throw new StravaHttpError(response.status, 'Strava activity update failed');
+      }
+      return response.json() as Promise<unknown>;
     },
   };
 }

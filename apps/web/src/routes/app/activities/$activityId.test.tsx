@@ -1,0 +1,97 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { renderRoute, signedInUser, stubSession } from '../../../test/router';
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+const morningRun = {
+  id: 'act_1',
+  sport: 'run',
+  title: 'Morning Run',
+  startedAt: '2026-09-20T06:00:00.000Z',
+  endedAt: '2026-09-20T07:00:00.000Z',
+  distanceM: 10200,
+  movingTimeS: 3500,
+  elapsedTimeS: 3600,
+  elevationGainM: 80,
+  avgHr: 148,
+  mapPolyline: null,
+  description: null,
+  sources: [{ provider: 'strava' as const }],
+  timezone: '(GMT+02:00) Europe/Budapest',
+  maxHr: 171,
+  avgSpeedMps: 2.91,
+  calories: 640,
+  titleOverridden: false,
+  hydrated: true,
+  streams: {
+    latlng: null,
+    timeS: [0, 10],
+    altitudeM: [110, 112],
+    heartrate: [140, 145],
+  },
+};
+
+describe('ActivityDetailPage', () => {
+  it('shows hydrated stats from the API', async () => {
+    stubSession(signedInUser, { activity: morningRun });
+    await renderRoute('/app/activities/act_1');
+
+    expect(await screen.findByLabelText('Title')).toHaveValue('Morning Run');
+    expect(screen.getByText('Strava')).toBeInTheDocument();
+    expect(screen.getByText('5:43 /km')).toBeInTheDocument();
+    expect(screen.getByText('Pace')).toBeInTheDocument();
+    expect(screen.getByText('171 bpm')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Heart rate' })).toBeInTheDocument();
+  });
+
+  it('saves an owner note', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: morningRun });
+    await renderRoute('/app/activities/act_1');
+
+    const note = await screen.findByLabelText('Note');
+    await user.type(note, 'Felt easy');
+    await user.click(screen.getByRole('button', { name: 'Save note' }));
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(note).toHaveValue('Felt easy');
+  });
+
+  it('overrides the activity title', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: { ...morningRun } });
+    await renderRoute('/app/activities/act_1');
+
+    const title = await screen.findByLabelText('Title');
+    await user.clear(title);
+    await user.type(title, 'Tempo');
+    await user.click(screen.getByRole('button', { name: 'Save title' }));
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(title).toHaveValue('Tempo');
+    expect(await screen.findByRole('button', { name: 'Use Strava title' })).toBeInTheDocument();
+  });
+
+  it('refreshes the activity from Strava', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: morningRun });
+    await renderRoute('/app/activities/act_1');
+
+    await user.click(await screen.findByRole('button', { name: 'Refresh from Strava' }));
+
+    expect(await screen.findByLabelText('Title')).toHaveValue('Morning Run');
+  });
+
+  it('shows an error when the activity is missing', async () => {
+    stubSession(signedInUser);
+    await renderRoute('/app/activities/missing');
+
+    expect(await screen.findByText('Could not load this activity.')).toBeInTheDocument();
+  });
+});

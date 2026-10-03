@@ -1,4 +1,4 @@
-import type { NormalizedProviderActivity, Sport } from '@road-to/domain';
+import type { ActivityStreamsDto, NormalizedProviderActivity, Sport } from '@road-to/domain';
 
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'revoked';
 
@@ -36,7 +36,42 @@ export type PublicActivity = {
   elevationGainM: number | null;
   avgHr: number | null;
   mapPolyline: string | null;
+  description: string | null;
   sources: Array<{ provider: 'strava' }>;
+};
+
+export type PublicActivityDetail = PublicActivity & {
+  timezone: string | null;
+  maxHr: number | null;
+  avgSpeedMps: number | null;
+  calories: number | null;
+  titleOverridden: boolean;
+  hydrated: boolean;
+  streams: ActivityStreamsDto | null;
+};
+
+export type ActivityRecord = {
+  id: string;
+  userId: string;
+  titleOverridden: boolean;
+  sport: Sport;
+  title: string;
+  startedAt: string;
+  endedAt: string;
+  timezone: string | null;
+  distanceM: number | null;
+  movingTimeS: number | null;
+  elapsedTimeS: number | null;
+  elevationGainM: number | null;
+  avgHr: number | null;
+  maxHr: number | null;
+  avgSpeedMps: number | null;
+  calories: number | null;
+  mapPolyline: string | null;
+  description: string | null;
+  integrationId: string;
+  externalId: string;
+  payload: unknown;
 };
 
 export type UpsertIntegrationInput = {
@@ -75,4 +110,14 @@ export type IntegrationRepository = {
     payload: Record<string, unknown>;
   }): Promise<void>;
   listActivities(userId: string): Promise<PublicActivity[]>;
+  getActivityById(userId: string, id: string): Promise<ActivityRecord | null>;
+  updateActivityFields(
+    userId: string,
+    id: string,
+    fields: {
+      description?: string | null;
+      title?: string;
+      titleOverridden?: boolean;
+    },
+  ): Promise<ActivityRecord | null>;
 };

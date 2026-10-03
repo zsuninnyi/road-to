@@ -47,6 +47,9 @@ function createFakeStrava(
       expiresAt: Date;
       athleteId: string;
     }>;
+    onGetActivity?: () => void;
+    onGetStreams?: () => void;
+    onUpdateActivity?: (id: string, input: { description: string }) => void;
   } = {},
 ): StravaClient {
   return {
@@ -68,6 +71,44 @@ function createFakeStrava(
       return options.refresh();
     },
     listActivities: async () => activities,
+    getActivity: async (_token, id) => {
+      options.onGetActivity?.();
+      const listed = activities.find((item) => {
+        if (typeof item !== 'object' || item === null || !('id' in item)) {
+          return false;
+        }
+        return Number((item as { id: number }).id) === Number(id);
+      });
+      return {
+        ...sampleActivity,
+        ...(typeof listed === 'object' && listed !== null ? listed : {}),
+        id: Number(id),
+        calories: 640,
+        average_heartrate: 148,
+        max_heartrate: 171,
+        average_speed: 2.91,
+        total_elevation_gain: 80,
+        map: { summary_polyline: '_p~iF~ps|U', polyline: '_p~iF~ps|U' },
+      };
+    },
+    getStreams: async () => {
+      options.onGetStreams?.();
+      return {
+        latlng: {
+          data: [
+            [47.5, 19.04],
+            [47.51, 19.05],
+          ],
+        },
+        time: { data: [0, 10] },
+        altitude: { data: [110, 112] },
+        heartrate: { data: [140, 145] },
+      };
+    },
+    updateActivity: async (_token, id, input) => {
+      options.onUpdateActivity?.(id, input);
+      return { id: Number(id), description: input.description };
+    },
   };
 }
 
@@ -122,7 +163,7 @@ describe('Strava integrations', () => {
     expect(url.origin).toBe('https://www.strava.com');
     expect(url.searchParams.get('client_id')).toBe('strava-client');
     expect(url.searchParams.get('redirect_uri')).toBe(secrets.redirectUri);
-    expect(url.searchParams.get('scope')).toBe('read,activity:read_all');
+    expect(url.searchParams.get('scope')).toBe('read,activity:read_all,activity:write');
   });
 
   it('imports the last month after the OAuth callback', async () => {
@@ -156,6 +197,7 @@ describe('Strava integrations', () => {
           elevationGainM: null,
           avgHr: null,
           mapPolyline: '_p~iF~ps|U',
+          description: null,
           sources: [{ provider: 'strava' }],
         },
       ],
@@ -225,6 +267,247 @@ describe('Strava integrations', () => {
     expect(callback.statusCode).toBe(302);
     expect(callback.headers.location).toBe('http://127.0.0.1:5173/app?strava=connected');
     expect(refreshed).toBe(true);
+  });
+
+  it('hydrates activity detail from Strava once and then reads the database', async () => {
+    let activityCalls = 0;
+    let streamCalls = 0;
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onGetActivity: () => {
+          activityCalls += 1;
+        },
+        onGetStreams: () => {
+          streamCalls += 1;
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const first = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toMatchObject({
+      id,
+      title: 'Morning Run',
+      calories: 640,
+      maxHr: 171,
+      hydrated: true,
+      streams: {
+        latlng: [
+          [47.5, 19.04],
+          [47.51, 19.05],
+        ],
+        timeS: [0, 10],
+        altitudeM: [110, 112],
+        heartrate: [140, 145],
+      },
+    });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    const second = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toMatchObject({ hydrated: true, calories: 640 });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+    await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+  });
+
+  it('refreshes one activity from Strava without clobbering owner fields', async () => {
+    let activityCalls = 0;
+    let streamCalls = 0;
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onGetActivity: () => {
+          activityCalls += 1;
+        },
+        onGetStreams: () => {
+          streamCalls += 1;
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(activityCalls).toBe(1);
+    expect(streamCalls).toBe(1);
+
+    await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: 'Tempo', description: 'Felt easy' },
+    });
+
+    const refreshed = await server.inject({
+      method: 'POST',
+      url: `/v1/activities/${id}/resync`,
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.json()).toMatchObject({
+      title: 'Tempo',
+      titleOverridden: true,
+      description: 'Felt easy',
+      hydrated: true,
+      calories: 640,
+    });
+    expect(activityCalls).toBe(2);
+    expect(streamCalls).toBe(2);
+
+    const again = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(again.json()).toMatchObject({ title: 'Tempo', description: 'Felt easy' });
+    expect(activityCalls).toBe(2);
+    expect(streamCalls).toBe(2);
+  });
+
+  it('returns 404 when resyncing an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/v1/activities/missing/resync',
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('saves an owner description, pushes it to Strava, and keeps it after resync', async () => {
+    const pushed: Array<{ id: string; description: string }> = [];
+    const server = await build(
+      signedIn,
+      createFakeStrava([sampleActivity], {
+        onUpdateActivity: (id, input) => {
+          pushed.push({ id, description: input.description });
+        },
+      }),
+    );
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const patched = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { description: '  Felt easy  ' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ id, description: 'Felt easy' });
+    expect(pushed).toEqual([{ id: '98765', description: 'Felt easy' }]);
+
+    const listedAgain = await server.inject({ method: 'GET', url: '/v1/activities' });
+    expect(listedAgain.json()).toMatchObject({
+      activities: [{ id, description: 'Felt easy' }],
+    });
+
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(afterResync.json()).toMatchObject({ description: 'Felt easy' });
+  });
+
+  it('overrides the title and restores the provider title when cleared', async () => {
+    const activities = [{ ...sampleActivity }];
+    const server = await build(signedIn, createFakeStrava(activities));
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+
+    const listed = await server.inject({ method: 'GET', url: '/v1/activities' });
+    const id = (listed.json() as { activities: { id: string }[] }).activities[0]?.id;
+    expect(id).toBeDefined();
+
+    const patched = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: '  Tempo  ' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json()).toMatchObject({ title: 'Tempo', titleOverridden: true });
+
+    activities[0] = { ...sampleActivity, name: 'Easy Run' };
+    const integrations = await server.inject({ method: 'GET', url: '/v1/integrations' });
+    const integrationId = (integrations.json() as { integrations: { id: string }[] })
+      .integrations[0]?.id;
+    await server.inject({ method: 'POST', url: `/v1/integrations/${integrationId}/resync` });
+
+    const afterResync = await server.inject({ method: 'GET', url: `/v1/activities/${id}` });
+    expect(afterResync.json()).toMatchObject({ title: 'Tempo', titleOverridden: true });
+
+    const cleared = await server.inject({
+      method: 'PATCH',
+      url: `/v1/activities/${id}`,
+      payload: { title: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json()).toMatchObject({ title: 'Easy Run', titleOverridden: false });
+  });
+
+  it('returns 404 when patching an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/v1/activities/missing',
+      payload: { description: 'Nope' },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('returns 404 for an unknown activity', async () => {
+    const server = await build();
+    const response = await server.inject({
+      method: 'GET',
+      url: '/v1/activities/missing',
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it('returns 503 when Strava credentials are missing', async () => {

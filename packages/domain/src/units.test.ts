@@ -1,10 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { formatDistanceMeters, formatDurationSeconds } from './units.js';
+import {
+  formatCalories,
+  formatDistanceMeters,
+  formatDurationSeconds,
+  formatPace,
+  formatSpeedMps,
+} from './units.js';
 
 describe('formatDistanceMeters', () => {
   it('uses km and miles for typical run distances', () => {
     expect(formatDistanceMeters(10200, 'metric')).toBe('10.2 km');
     expect(formatDistanceMeters(1609.344, 'imperial')).toBe('1.00 mi');
+  });
+});
+
+describe('formatSpeedMps', () => {
+  it('uses km/h and mph', () => {
+    expect(formatSpeedMps(2.7778, 'metric')).toBe('10.0 km/h');
+    expect(formatSpeedMps(4.4704, 'imperial')).toBe('10.0 mph');
+  });
+});
+
+describe('formatCalories', () => {
+  it('rounds to whole kilocalories', () => {
+    expect(formatCalories(512.4)).toBe('512 kcal');
+  });
+});
+
+describe('formatPace', () => {
+  it('uses min/km and min/mile', () => {
+    expect(formatPace(3500, 10200, 'metric')).toBe('5:43 /km');
+    expect(formatPace(3500, 10200, 'imperial')).toBe('9:12 /mi');
+  });
+
+  it('returns null without a usable time or distance', () => {
+    expect(formatPace(0, 10200, 'metric')).toBeNull();
+    expect(formatPace(3500, 0, 'metric')).toBeNull();
   });
 });
 

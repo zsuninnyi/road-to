@@ -73,6 +73,83 @@ describe('createApiClient', () => {
     });
   });
 
+  it('loads one activity', async () => {
+    const detail = {
+      id: 'act_1',
+      sport: 'run',
+      title: 'Morning Run',
+      startedAt: '2026-09-20T06:00:00.000Z',
+      endedAt: '2026-09-20T07:00:00.000Z',
+      distanceM: 10200,
+      movingTimeS: 3500,
+      elapsedTimeS: 3600,
+      elevationGainM: 80,
+      avgHr: 148,
+      mapPolyline: null,
+      sources: [{ provider: 'strava' as const }],
+      timezone: null,
+      maxHr: 171,
+      avgSpeedMps: 2.91,
+      calories: 640,
+      description: null,
+      hydrated: true,
+      titleOverridden: false,
+      streams: null,
+    };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.activity('act_1')).resolves.toEqual(detail);
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
+      credentials: 'include',
+    });
+  });
+
+  it('patches an activity description', async () => {
+    const detail = {
+      id: 'act_1',
+      description: 'Felt easy',
+    };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.updateActivity('act_1', { description: 'Felt easy' })).resolves.toEqual(
+      detail,
+    );
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
+      credentials: 'include',
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'Felt easy' }),
+    });
+  });
+
+  it('patches an activity title', async () => {
+    const detail = {
+      id: 'act_1',
+      title: 'Tempo',
+      titleOverridden: true,
+    };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.updateActivity('act_1', { title: 'Tempo' })).resolves.toEqual(detail);
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1', {
+      credentials: 'include',
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Tempo' }),
+    });
+  });
+
+  it('resyncs one activity', async () => {
+    const detail = { id: 'act_1', hydrated: true };
+    const fetchFn = vi.fn().mockResolvedValue(jsonResponse(detail));
+    const client = createApiClient({ baseUrl: 'http://example.test', fetch: fetchFn });
+    await expect(client.resyncActivity('act_1')).resolves.toEqual(detail);
+    expect(fetchFn).toHaveBeenCalledWith('http://example.test/v1/activities/act_1/resync', {
+      credentials: 'include',
+      method: 'POST',
+    });
+  });
+
   it('posts Strava connect', async () => {
     const fetchFn = vi
       .fn()

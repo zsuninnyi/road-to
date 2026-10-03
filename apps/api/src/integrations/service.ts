@@ -1,12 +1,22 @@
 import {
+  asJsonRecord,
+  isHydratedStravaPayload,
   normalizeStravaSummary,
+  parseStravaStreams,
   parseStravaSummary,
   stravaBackfillAfterUnix,
+  trimStravaDetail,
 } from '@road-to/domain';
 import { decryptSecret, encryptSecret } from '../crypto/tokens.js';
 import { createOAuthState, readOAuthState } from './oauth-state.js';
-import { StravaHttpError, type StravaClient } from './strava-http.js';
-import type { IntegrationRepository, PublicActivity, PublicIntegration } from './types.js';
+import { StravaHttpError, stravaOAuthScopes, type StravaClient } from './strava-http.js';
+import type {
+  ActivityRecord,
+  IntegrationRepository,
+  PublicActivity,
+  PublicActivityDetail,
+  PublicIntegration,
+} from './types.js';
 
 export class StravaNotConfiguredError extends Error {
   constructor() {
@@ -19,6 +29,13 @@ export class IntegrationNotFoundError extends Error {
   constructor() {
     super('Integration not found');
     this.name = 'IntegrationNotFoundError';
+  }
+}
+
+export class ActivityNotFoundError extends Error {
+  constructor() {
+    super('Activity not found');
+    this.name = 'ActivityNotFoundError';
   }
 }
 
@@ -42,6 +59,13 @@ export type IntegrationService = {
   }): Promise<{ location: string }>;
   resync(userId: string, integrationId: string): Promise<{ imported: number }>;
   listActivities(userId: string): Promise<PublicActivity[]>;
+  getActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
+  resyncActivity(userId: string, activityId: string): Promise<PublicActivityDetail>;
+  updateActivity(
+    userId: string,
+    activityId: string,
+    input: { description?: string | null; title?: string | null },
+  ): Promise<PublicActivityDetail>;
 };
 
 function toPublic(row: {
@@ -64,6 +88,52 @@ function appRedirect(webOrigin: string, strava: string): { location: string } {
   const url = new URL('/app', webOrigin);
   url.searchParams.set('strava', strava);
   return { location: url.toString() };
+}
+
+function normalizeOwnerDescription(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function hasStravaActivityWrite(scopes: string): boolean {
+  return scopes
+    .split(/[,\s]+/)
+    .filter((scope) => scope.length > 0)
+    .includes('activity:write');
+}
+
+function providerTitleFromPayload(payload: unknown): string {
+  const record = asJsonRecord(payload);
+  const raw = isHydratedStravaPayload(record) ? record.activity : record;
+  const parsed = parseStravaSummary(raw);
+  return (parsed ? normalizeStravaSummary(parsed)?.title : null) ?? 'Untitled';
+}
+
+function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
+  const payload = asJsonRecord(row.payload);
+  const hydrated = isHydratedStravaPayload(payload);
+  return {
+    id: row.id,
+    sport: row.sport,
+    title: row.title,
+    startedAt: row.startedAt,
+    endedAt: row.endedAt,
+    timezone: row.timezone,
+    distanceM: row.distanceM,
+    movingTimeS: row.movingTimeS,
+    elapsedTimeS: row.elapsedTimeS,
+    elevationGainM: row.elevationGainM,
+    avgHr: row.avgHr,
+    maxHr: row.maxHr,
+    avgSpeedMps: row.avgSpeedMps,
+    calories: row.calories,
+    mapPolyline: row.mapPolyline,
+    description: row.description,
+    sources: [{ provider: 'strava' }],
+    titleOverridden: row.titleOverridden,
+    hydrated,
+    streams: hydrated ? parseStravaStreams(payload.streams) : null,
+  };
 }
 
 export function createIntegrationService(options: {
@@ -160,6 +230,39 @@ export function createIntegrationService(options: {
     }
   }
 
+  async function hydrateFromStrava(
+    userId: string,
+    row: ActivityRecord,
+  ): Promise<PublicActivityDetail> {
+    if (!options.strava) {
+      throw new StravaNotConfiguredError();
+    }
+    const integration = await options.repo.getById(userId, row.integrationId);
+    if (!integration) {
+      throw new IntegrationNotFoundError();
+    }
+    const accessToken = await validAccessToken(integration);
+    const activity = await options.strava.getActivity(accessToken, row.externalId);
+    const streams = await options.strava.getStreams(accessToken, row.externalId);
+    const parsed = parseStravaSummary(activity);
+    const normalized = parsed ? normalizeStravaSummary(parsed) : null;
+    if (!normalized) {
+      return toActivityDetail(row);
+    }
+    const streamDto = parseStravaStreams(streams);
+    await options.repo.upsertStravaActivity({
+      userId,
+      integrationId: row.integrationId,
+      normalized: {
+        ...normalized,
+        hasGps: normalized.hasGps || (streamDto.latlng !== null && streamDto.latlng.length > 0),
+      },
+      payload: { activity: trimStravaDetail(activity), streams },
+    });
+    const updated = await options.repo.getActivityById(userId, row.id);
+    return toActivityDetail(updated ?? row);
+  }
+
   return {
     async listIntegrations(userId) {
       const rows = await options.repo.listByUser(userId);
@@ -174,8 +277,8 @@ export function createIntegrationService(options: {
       url.searchParams.set('client_id', options.secrets.stravaClientId);
       url.searchParams.set('redirect_uri', options.secrets.redirectUri);
       url.searchParams.set('response_type', 'code');
-      url.searchParams.set('approval_prompt', 'auto');
-      url.searchParams.set('scope', 'read,activity:read_all');
+      url.searchParams.set('approval_prompt', 'force');
+      url.searchParams.set('scope', stravaOAuthScopes);
       url.searchParams.set('state', state);
       return { url: url.toString() };
     },
@@ -199,7 +302,7 @@ export function createIntegrationService(options: {
           accessTokenEnc: encryptSecret(tokens.accessToken, options.secrets.tokenKey),
           refreshTokenEnc: encryptSecret(tokens.refreshToken, options.secrets.tokenKey),
           expiresAt: tokens.expiresAt,
-          scopes: tokens.scope ?? 'read,activity:read_all',
+          scopes: tokens.scope ?? stravaOAuthScopes,
         });
         await importRecent(parsed.userId, integration.id);
         return appRedirect(options.secrets.webOrigin, 'connected');
@@ -214,6 +317,65 @@ export function createIntegrationService(options: {
     async listActivities(userId) {
       return options.repo.listActivities(userId);
     },
+    async getActivity(userId, activityId) {
+      const row = await options.repo.getActivityById(userId, activityId);
+      if (!row) {
+        throw new ActivityNotFoundError();
+      }
+      if (isHydratedStravaPayload(asJsonRecord(row.payload)) || !options.strava) {
+        return toActivityDetail(row);
+      }
+      return hydrateFromStrava(userId, row);
+    },
+    async resyncActivity(userId, activityId) {
+      const row = await options.repo.getActivityById(userId, activityId);
+      if (!row) {
+        throw new ActivityNotFoundError();
+      }
+      return hydrateFromStrava(userId, row);
+    },
+    async updateActivity(userId, activityId, input) {
+      const row = await options.repo.getActivityById(userId, activityId);
+      if (!row) {
+        throw new ActivityNotFoundError();
+      }
+      const fields: {
+        description?: string | null;
+        title?: string;
+        titleOverridden?: boolean;
+      } = {};
+      if ('description' in input) {
+        fields.description = normalizeOwnerDescription(input.description ?? null);
+      }
+      if ('title' in input) {
+        const trimmed = input.title?.trim() ?? '';
+        const providerTitle = providerTitleFromPayload(row.payload);
+        if (trimmed.length === 0 || trimmed === providerTitle) {
+          fields.title = providerTitle;
+          fields.titleOverridden = false;
+        } else {
+          fields.title = trimmed;
+          fields.titleOverridden = true;
+        }
+      }
+      if (Object.keys(fields).length === 0) {
+        return toActivityDetail(row);
+      }
+      const updated = await options.repo.updateActivityFields(userId, activityId, fields);
+      if (!updated) {
+        throw new ActivityNotFoundError();
+      }
+      if ('description' in input && options.strava) {
+        const integration = await options.repo.getById(userId, updated.integrationId);
+        if (integration && hasStravaActivityWrite(integration.scopes)) {
+          const accessToken = await validAccessToken(integration);
+          await options.strava.updateActivity(accessToken, updated.externalId, {
+            description: fields.description ?? '',
+          });
+        }
+      }
+      return toActivityDetail(updated);
+    },
   };
 }
 
@@ -227,5 +389,8 @@ export function createUnavailableIntegrationService(): IntegrationService {
     handleCallback: async () => ({ location: '/' }),
     resync: fail,
     listActivities: fail,
+    getActivity: fail,
+    resyncActivity: fail,
+    updateActivity: fail,
   };
 }

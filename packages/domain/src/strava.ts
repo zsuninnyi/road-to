@@ -39,7 +39,19 @@ export type StravaSummaryActivity = {
   average_speed?: number | null;
   calories?: number | null;
   timezone?: string | null;
-  map?: { summary_polyline?: string | null } | null;
+  map?: { summary_polyline?: string | null; polyline?: string | null } | null;
+};
+
+export type HydratedStravaPayload = {
+  activity: unknown;
+  streams: unknown;
+};
+
+export type ActivityStreamsDto = {
+  latlng: number[][] | null;
+  timeS: number[] | null;
+  altitudeM: number[] | null;
+  heartrate: number[] | null;
 };
 
 function asFiniteNumber(value: unknown): number | null {
@@ -60,7 +72,7 @@ export function parseStravaSummary(input: unknown): StravaSummaryActivity | null
   }
   const map =
     typeof row.map === 'object' && row.map !== null
-      ? (row.map as { summary_polyline?: string | null })
+      ? (row.map as { summary_polyline?: string | null; polyline?: string | null })
       : null;
   return {
     id: row.id,
@@ -93,7 +105,8 @@ export function normalizeStravaSummary(
   }
   const elapsed = input.elapsed_time ?? input.moving_time ?? 0;
   const ended = new Date(started.getTime() + Math.max(0, elapsed) * 1000);
-  const polyline = input.map?.summary_polyline?.trim() ? input.map.summary_polyline.trim() : null;
+  const polylineRaw = input.map?.polyline?.trim() || input.map?.summary_polyline?.trim() || '';
+  const polyline = polylineRaw.length > 0 ? polylineRaw : null;
   const title = input.name?.trim() ? input.name.trim() : 'Untitled';
 
   return {
@@ -129,4 +142,81 @@ export function activityFingerprint(input: {
 
 export function stravaBackfillAfterUnix(nowMs: number): number {
   return Math.floor((nowMs - stravaInitialBackfillDays * 24 * 60 * 60 * 1000) / 1000);
+}
+
+export function isHydratedStravaPayload(value: unknown): value is HydratedStravaPayload {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return 'activity' in value && 'streams' in value;
+}
+
+export function asJsonRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      return asJsonRecord(JSON.parse(value) as unknown);
+    } catch {
+      return {};
+    }
+  }
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+export function trimStravaDetail(activity: unknown): Record<string, unknown> {
+  const row = asJsonRecord(activity);
+  const { segment_efforts: _segments, best_efforts: _best, ...rest } = row;
+  return rest;
+}
+
+function streamSeries(streams: unknown, key: string): unknown[] | null {
+  if (Array.isArray(streams)) {
+    const row = streams.find(
+      (item) =>
+        typeof item === 'object' && item !== null && (item as { type?: string }).type === key,
+    ) as { data?: unknown } | undefined;
+    return Array.isArray(row?.data) ? row.data : null;
+  }
+  if (typeof streams !== 'object' || streams === null) {
+    return null;
+  }
+  const entry = (streams as Record<string, unknown>)[key];
+  if (Array.isArray(entry)) {
+    return entry;
+  }
+  if (
+    typeof entry === 'object' &&
+    entry !== null &&
+    Array.isArray((entry as { data?: unknown }).data)
+  ) {
+    return (entry as { data: unknown[] }).data;
+  }
+  return null;
+}
+
+export function parseStravaStreams(streams: unknown): ActivityStreamsDto {
+  const latlngRaw = streamSeries(streams, 'latlng');
+  const latlng = latlngRaw?.every(
+    (point) =>
+      Array.isArray(point) &&
+      point.length >= 2 &&
+      typeof point[0] === 'number' &&
+      typeof point[1] === 'number',
+  )
+    ? (latlngRaw as number[][])
+    : null;
+  const numbers = (key: string): number[] | null => {
+    const series = streamSeries(streams, key);
+    return series?.every((item) => typeof item === 'number' && Number.isFinite(item))
+      ? (series as number[])
+      : null;
+  };
+  return {
+    latlng,
+    timeS: numbers('time'),
+    altitudeM: numbers('altitude'),
+    heartrate: numbers('heartrate'),
+  };
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { decodePolyline } from './polyline.js';
 import {
   activityFingerprint,
+  isHydratedStravaPayload,
   normalizeStravaSummary,
+  parseStravaStreams,
   parseStravaSummary,
   stravaBackfillAfterUnix,
   stravaInitialBackfillDays,
@@ -42,6 +45,14 @@ describe('normalizeStravaSummary', () => {
     });
   });
 
+  it('prefers the detailed map polyline over the summary polyline', () => {
+    const parsed = parseStravaSummary({
+      ...sample,
+      map: { summary_polyline: 'abc', polyline: '_p~iF~ps|U' },
+    });
+    expect(normalizeStravaSummary(parsed!)?.mapPolyline).toBe('_p~iF~ps|U');
+  });
+
   it('skips rows without a usable start time', () => {
     expect(parseStravaSummary({ name: 'x' })).toBeNull();
     expect(normalizeStravaSummary({ id: 1, start_date: 'not-a-date' })).toBeNull();
@@ -54,6 +65,43 @@ describe('strava backfill window', () => {
     expect(stravaBackfillAfterUnix(Date.UTC(2026, 8, 23))).toBe(
       Math.floor(Date.UTC(2026, 7, 24) / 1000),
     );
+  });
+});
+
+describe('hydrated Strava payload', () => {
+  it('detects the wrapped detail blob, not a list summary', () => {
+    expect(isHydratedStravaPayload(sample)).toBe(false);
+    expect(isHydratedStravaPayload({ activity: sample, streams: {} })).toBe(true);
+  });
+
+  it('reads key_by_type streams', () => {
+    expect(
+      parseStravaStreams({
+        latlng: {
+          data: [
+            [47.5, 19.04],
+            [47.51, 19.05],
+          ],
+        },
+        time: { data: [0, 10] },
+        altitude: { data: [110, 112] },
+        heartrate: { data: [140, 145] },
+      }),
+    ).toEqual({
+      latlng: [
+        [47.5, 19.04],
+        [47.51, 19.05],
+      ],
+      timeS: [0, 10],
+      altitudeM: [110, 112],
+      heartrate: [140, 145],
+    });
+  });
+});
+
+describe('decodePolyline', () => {
+  it('decodes the Google sample string', () => {
+    expect(decodePolyline('_p~iF~ps|U')).toEqual([[38.5, -120.2]]);
   });
 });
 

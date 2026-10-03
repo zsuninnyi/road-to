@@ -66,4 +66,51 @@ describe('createStravaHttpClient', () => {
     });
     await expect(client.exchangeCode('code')).rejects.toBeInstanceOf(StravaHttpError);
   });
+
+  it('loads a detailed activity and streams', async () => {
+    const urls: string[] = [];
+    const fetchFn: typeof fetch = async (input) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/streams')) {
+        return jsonResponse({ latlng: { data: [[47.5, 19.04]] } });
+      }
+      return jsonResponse({ id: 98_765, name: 'Morning Run' });
+    };
+    const client = createStravaHttpClient({
+      clientId: 'id',
+      clientSecret: 'secret',
+      fetchFn,
+    });
+    await expect(client.getActivity('tok', '98765')).resolves.toEqual({
+      id: 98_765,
+      name: 'Morning Run',
+    });
+    await expect(client.getStreams('tok', '98765')).resolves.toEqual({
+      latlng: { data: [[47.5, 19.04]] },
+    });
+    expect(urls[0]).toBe('https://www.strava.com/api/v3/activities/98765');
+    expect(urls[1]).toContain('/activities/98765/streams');
+    expect(urls[1]).toContain('key_by_type=true');
+  });
+
+  it('updates an activity description', async () => {
+    const fetchFn: typeof fetch = async (input, init) => {
+      expect(String(input)).toBe('https://www.strava.com/api/v3/activities/98765');
+      expect(init?.method).toBe('PUT');
+      expect(init?.body).toBe(JSON.stringify({ description: 'Felt easy' }));
+      return jsonResponse({ id: 98_765, description: 'Felt easy' });
+    };
+    const client = createStravaHttpClient({
+      clientId: 'id',
+      clientSecret: 'secret',
+      fetchFn,
+    });
+    await expect(
+      client.updateActivity('tok', '98765', { description: 'Felt easy' }),
+    ).resolves.toEqual({
+      id: 98_765,
+      description: 'Felt easy',
+    });
+  });
 });
