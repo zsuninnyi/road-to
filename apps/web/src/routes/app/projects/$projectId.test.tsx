@@ -38,5 +38,7 @@ describe('project activity list', () => {
     expect(screen.getByText('Easy shakeout')).toBeInTheDocument();
     expect(screen.getAllByText('Private').length).toBeGreaterThan(0);
     expect(screen.getByText('10.2 km · 58:20 · 5:43 /km')).toBeInTheDocument();
+    expect(screen.getByLabelText('From')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
   });
 });

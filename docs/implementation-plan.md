@@ -521,7 +521,8 @@ Build in vertical slices that are demoable. Do not connect four providers before
 - Fetch Strava detail and streams when an activity is imported, and when Strava sends an activity-create webhook. Opening the activity is not required. **Done.** Set `STRAVA_WEBHOOK_CALLBACK_URL` to a public URL so live creates arrive.
 - Project visibility (`private` | `public`), default private. A public project is shared at `/share/projects/:id` with every activity in it. Activity visibility does not hide an activity from that page. **Done.**
 - Project activity rows match the activity list: name, date, sport, visibility, note, distance, moving time, and pace for runs. **Done.** The share page uses the same row.
-- CRUD beyond create, manual assign, date-window + sport rules, sticky exclude.
+- Inclusive date window on the project (`window_start`, `window_end`). Blank bounds stay open. Membership is that sport inside the window. **Done.** Removing an activity is sticky: import and rule runs do not put it back until the owner adds it back.
+- CRUD beyond create, manual assign of an activity that is outside the window.
 - One pinned goal activity per project; project list sorts pin first, then newest.
 - Project-scoped list that is more than “every activity of this sport”.
 - Re-run rules after import.
@@ -665,6 +666,6 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 
 Phases 0–2 are in. Phase 3 can create a project, fetch Strava activities, write the progress note, share a public project, and list activities with the same row as the activity list.
 
-The next slice is still Phase 3: a date window on the project, so membership is the activities of that sport inside the window, with sticky exclude for a manual removal. After that, pin one goal activity to the top of the project list.
+The next slice is still Phase 3: pin one goal activity so it stays at the top of the project list. Manual add of an activity outside the date window is still open.
 
 Do not start account delete or Sign in with Apple before that. Account delete is Phase 8. Apple sign-in is Phase 9. The mobile app is Phase 10, after both. Do not scaffold Garmin, Whoop, or TrainingPeaks adapters up front.

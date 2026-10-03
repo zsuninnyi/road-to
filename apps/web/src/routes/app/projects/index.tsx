@@ -16,6 +16,8 @@ export function ProjectsPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [sport, setSport] = useState<(typeof sports)[number]>('run');
+  const [windowStart, setWindowStart] = useState('');
+  const [windowEnd, setWindowEnd] = useState('');
   const projectsQuery = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.projects(),
@@ -23,7 +25,13 @@ export function ProjectsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => api.createProject({ name: name.trim(), sport }),
+    mutationFn: () =>
+      api.createProject({
+        name: name.trim(),
+        sport,
+        windowStart: windowStart || null,
+        windowEnd: windowEnd || null,
+      }),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       await queryClient.invalidateQueries({ queryKey: ['activities'] });
@@ -76,6 +84,30 @@ export function ProjectsPage() {
             </option>
           ))}
         </select>
+        <p className="text-sm text-muted">{t('projects.windowHint')}</p>
+        <label className="text-sm" htmlFor="project-window-start">
+          {t('projects.from')}
+        </label>
+        <input
+          id="project-window-start"
+          type="date"
+          value={windowStart}
+          onChange={(event) => setWindowStart(event.target.value)}
+          className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
+        />
+        <label className="text-sm" htmlFor="project-window-end">
+          {t('projects.to')}
+        </label>
+        <input
+          id="project-window-end"
+          type="date"
+          value={windowEnd}
+          onChange={(event) => setWindowEnd(event.target.value)}
+          className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
+        />
+        {createMutation.isError ? (
+          <p className="text-sm text-danger">{t('projects.windowError')}</p>
+        ) : null}
         <button
           type="submit"
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-fg"

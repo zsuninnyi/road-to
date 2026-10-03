@@ -79,12 +79,15 @@ export type Project = {
   name: string;
   sport: string;
   visibility: 'private' | 'public';
+  windowStart: string | null;
+  windowEnd: string | null;
   totalDistanceM: number;
   note: string | null;
 };
 
 export type ProjectDetail = Project & {
   activities: Activity[];
+  excludedActivities: Activity[];
 };
 
 export type PublicProjectShare = ProjectDetail & {
@@ -160,18 +163,40 @@ export function createApiClient(options: ApiClientOptions) {
     project(id: string): Promise<ProjectDetail> {
       return request<ProjectDetail>(`/v1/projects/${id}`);
     },
-    createProject(input: { name: string; sport: string }): Promise<ProjectDetail> {
+    createProject(input: {
+      name: string;
+      sport: string;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+    }): Promise<ProjectDetail> {
       return request<ProjectDetail>('/v1/projects', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
       });
     },
-    updateProject(id: string, input: { visibility: 'private' | 'public' }): Promise<ProjectDetail> {
+    updateProject(
+      id: string,
+      input: {
+        visibility?: 'private' | 'public';
+        windowStart?: string | null;
+        windowEnd?: string | null;
+      },
+    ): Promise<ProjectDetail> {
       return request<ProjectDetail>(`/v1/projects/${id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
+      });
+    },
+    excludeProjectActivity(projectId: string, activityId: string): Promise<ProjectDetail> {
+      return request<ProjectDetail>(`/v1/projects/${projectId}/activities/${activityId}`, {
+        method: 'DELETE',
+      });
+    },
+    restoreProjectActivity(projectId: string, activityId: string): Promise<ProjectDetail> {
+      return request<ProjectDetail>(`/v1/projects/${projectId}/activities/${activityId}`, {
+        method: 'POST',
       });
     },
     publicProject(id: string): Promise<PublicProjectShare> {

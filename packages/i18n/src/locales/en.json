@@ -74,7 +74,15 @@
     "visibilityError": "Could not update visibility.",
     "shareLink": "Share page",
     "shareHint": "Anyone with this link can see this project and every activity in it.",
-    "loadError": "Could not load this project."
+    "loadError": "Could not load this project.",
+    "from": "From",
+    "to": "To",
+    "saveWindow": "Save dates",
+    "windowHint": "Inclusive dates for this sport. Leave a side blank to leave it open.",
+    "windowError": "Those dates are not a valid window.",
+    "remove": "Remove",
+    "removed": "Removed",
+    "addBack": "Add back"
   },
   "sports": {
     "run": "Run",

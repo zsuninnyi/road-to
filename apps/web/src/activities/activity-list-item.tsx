@@ -1,4 +1,5 @@
 import type { Activity } from '@road-to/api-client';
+import type { ReactNode } from 'react';
 import {
   formatDistanceMeters,
   formatDurationSeconds,
@@ -12,10 +13,12 @@ export function ActivityListItem({
   activity,
   units,
   linked = true,
+  action = null,
 }: {
   activity: Activity;
   units: Units;
   linked?: boolean;
+  action?: ReactNode;
 }) {
   const { t } = useTranslation();
   const pace =
@@ -57,6 +60,7 @@ export function ActivityListItem({
         {activity.description ? (
           <p className="mt-1 text-sm text-muted">{activity.description}</p>
         ) : null}
+        {action}
       </div>
       <p className="text-sm text-muted">
         {activity.distanceM != null ? formatDistanceMeters(activity.distanceM, units) : '—'}

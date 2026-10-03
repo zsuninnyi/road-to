@@ -88,6 +88,8 @@ export type ProjectRecord = {
   name: string;
   sport: Sport;
   visibility: ActivityVisibility;
+  windowStart: string | null;
+  windowEnd: string | null;
 };
 
 export type PublicUser = {
@@ -139,13 +141,23 @@ export type IntegrationRepository = {
   getProject(userId: string, id: string): Promise<ProjectRecord | null>;
   findProject(id: string): Promise<ProjectRecord | null>;
   getPublicUser(userId: string): Promise<PublicUser | null>;
-  createProject(userId: string, input: { name: string; sport: Sport }): Promise<ProjectRecord>;
+  createProject(
+    userId: string,
+    input: { name: string; sport: Sport; windowStart: string | null; windowEnd: string | null },
+  ): Promise<ProjectRecord>;
   updateProjectFields(
     userId: string,
     id: string,
-    fields: { visibility?: ActivityVisibility },
+    fields: {
+      visibility?: ActivityVisibility;
+      windowStart?: string | null;
+      windowEnd?: string | null;
+    },
   ): Promise<ProjectRecord | null>;
   linkProjectActivity(projectId: string, activityId: string): Promise<void>;
+  listExcludedActivityIds(projectId: string): Promise<string[]>;
+  excludeProjectActivity(projectId: string, activityId: string): Promise<void>;
+  restoreProjectActivity(projectId: string, activityId: string): Promise<void>;
   updateActivityFields(
     userId: string,
     id: string,
