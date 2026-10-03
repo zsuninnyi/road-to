@@ -205,7 +205,9 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         ...row,
         ...(fields.description !== undefined ? { description: fields.description } : {}),
         ...(fields.title !== undefined ? { title: fields.title } : {}),
-        ...(fields.titleOverridden !== undefined ? { titleOverridden: fields.titleOverridden } : {}),
+        ...(fields.titleOverridden !== undefined
+          ? { titleOverridden: fields.titleOverridden }
+          : {}),
         ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
       });
       return this.getActivityById(userId, id);

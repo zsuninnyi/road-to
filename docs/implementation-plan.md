@@ -1,10 +1,10 @@
 # Road To — Implementation Plan
 
-**Status:** draft, pre-implementation  
+**Status:** in progress  
 **Date:** 2026-09-21  
 **Depends on:** [requirements.md](./requirements.md)
 
-This plan turns the requirements into a buildable architecture. Nothing in this document requires code to be written yet; it is the sequence and the technical defaults to use when implementation starts.
+This plan is the architecture and the build order. Phases 0–2 below are done except where a bullet says otherwise. The next slice is projects.
 
 ---
 
@@ -485,34 +485,37 @@ Build in vertical slices that are demoable. Do not connect four providers before
 ### Phase 0 — Skeleton (foundation)
 
 - Monorepo, Docker Compose Postgres, Kysely + kysely-ctl migrations for `users` + empty `activities`.
-- Fastify health check, Better Auth Google (Apple can follow in the same phase).
+- Fastify health check, Better Auth Google. Sign in with Apple is Phase 9, before the mobile app.
 - Web: login, empty app shell, TanStack Router + Query, Tailwind with a small `@theme` token set, i18next with `en` catalog.
 - CI: typecheck + lint.
 
-**Exit:** sign in, sign out, session cookie works.
+**Exit:** sign in with Google, sign out, session cookie works. **Done.**
 
 ### Phase 1 — Strava library
 
 - `integrations` + OAuth.
 - First import is the **last 30 days** so we can prove mapping against real data. Full history backfill stays a later step.
-- Backfill job + activity list + detail + MapLibre.
+- Activity list + detail + MapLibre. Detail and streams hydrate on first open and stay in `payload`.
 - Store source payload and polyline.
 - Provider title as default; owner can override.
+- Owner note, written back to Strava when the connection has `activity:write`.
 - Source badge (Strava branding).
-- Manual resync per activity and per integration.
+- Manual resync per activity and per integration. Integration resync stays list summaries only.
 - Units formatting.
 
-**Exit:** a real Strava account shows outdoor runs on a map.
+**Exit:** a real Strava account shows outdoor runs on a map. **Done.**
 
-### Phase 2 — Privacy, notes, Apple
+### Phase 2 — Privacy and notes
 
-- Activity visibility and description.
-- Sign in with Apple.
-- Account delete.
+- Activity description. **Done.** Resync does not wipe it.
+- Activity visibility (`private` | `public`), default private, shown on the list and the detail page. **Done.** Share pages do not exist yet, so public only marks the activity for later shares.
+- Account delete is **not** in this phase. It is Phase 8, after the product slices that create the data it must remove.
 
-**Exit:** private by default; notes survive resync.
+**Exit:** private by default; notes survive resync. **Done.**
 
 ### Phase 3 — Projects
+
+**Next.**
 
 - CRUD projects, manual assign, date-window + sport rules, sticky exclude.
 - One pinned goal activity per project; project list sorts pin first, then newest.
@@ -553,10 +556,25 @@ Build in vertical slices that are demoable. Do not connect four providers before
 - Redis/BullMQ only with evidence.
 - Observability.
 
-### Phase 8 — Mobile (later)
+### Phase 8 — Account delete
+
+- `DELETE /v1/me` removes the user, session, integrations, activities, and source payloads.
+- Comes after projects, sharing, and the other product slices so delete covers the rows those slices create.
+
+**Exit:** deleting the account signs the user out and leaves none of their training data.
+
+### Phase 9 — Sign in with Apple
+
+Web Apple sign-in, before any mobile app.
+
+- Better Auth Sign in with Apple (Service ID, `.p8` client secret, HTTPS return URL, privacy policy URL).
+
+**Exit:** a user can sign in with Apple on the web and get the same session cookie as Google.
+
+### Phase 10 — Mobile
 
 - Expo app, `api-client` + `domain`.
-- Native Google/Apple sign-in.
+- Native Google and Apple sign-in against the same Fastify session or token endpoint.
 - Native maps. No requirement to reuse web components 1:1.
 
 ---
@@ -629,7 +647,7 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 | Share pages | Owner name + photo | Owner wants anonymous shares |
 | i18n | i18next, `packages/i18n`, English only in v1 | Adding a second locale |
 | Product posture | Personal first; still brand and attribute sources | Public launch / App Store |
-| Auth | Better Auth, Google then Apple | If native token story is awkward |
+| Auth | Better Auth. Google is live. Web Sign in with Apple is Phase 9, after account delete and before mobile | If native token story is awkward |
 | Web client state | TanStack Query + URL + `useState`; no Redux | A real client-only store is needed → Zustand |
 | Web styling | Tailwind CSS v4 + `@theme` tokens | Mobile starts and NativeWind is worth it |
 | Local Node | Host `pnpm`, Docker for Postgres only | Team onboarding is painful without a full Compose profile |
@@ -637,12 +655,8 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 
 ---
 
-## 13. Suggested first implementation ticket
+## 13. Next implementation ticket
 
-When you are ready to write code, start with Phase 0 only:
+Phases 0–2 are in. The next slice is **Phase 3 — Projects**.
 
-1. pnpm workspace + `apps/api` + `apps/web` + `packages/domain` + `packages/i18n`.
-2. Dockerized Postgres + Kysely migrations + `users`.
-3. Better Auth Google + a protected `/app` route.
-
-Stop there and plug in Strava next. Do not scaffold all four adapters up front beyond empty `ActivityProvider` interfaces.
+Do not start account delete or Sign in with Apple before that. Account delete is Phase 8. Apple sign-in is Phase 9. The mobile app is Phase 10, after both. Do not scaffold Garmin, Whoop, or TrainingPeaks adapters up front.

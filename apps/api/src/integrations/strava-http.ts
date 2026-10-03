@@ -17,11 +17,7 @@ export type StravaClient = {
   ): Promise<unknown[]>;
   getActivity(accessToken: string, id: string): Promise<unknown>;
   getStreams(accessToken: string, id: string): Promise<unknown>;
-  updateActivity(
-    accessToken: string,
-    id: string,
-    input: { description: string },
-  ): Promise<unknown>;
+  updateActivity(accessToken: string, id: string, input: { description: string }): Promise<unknown>;
 };
 
 export class StravaHttpError extends Error {
