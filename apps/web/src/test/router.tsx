@@ -131,6 +131,43 @@ export function stubSession(
           json: async () => ({ activities: options.activities ?? [] }),
         };
       }
+      if (url.includes('/v1/projects')) {
+        if (method === 'POST') {
+          const body = JSON.parse(String(init?.body ?? '{}')) as { name?: string; sport?: string };
+          const project = {
+            id: 'project_1',
+            name: body.name ?? 'Project',
+            sport: body.sport ?? 'run',
+            totalDistanceM: 0,
+            note: null,
+            activities: [],
+          };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => project,
+          };
+        }
+        if (/\/v1\/projects\/[^/?]+/.test(url)) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              id: 'project_1',
+              name: 'Marathon',
+              sport: 'run',
+              totalDistanceM: 0,
+              note: null,
+              activities: [],
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ projects: [] }),
+        };
+      }
       if (url.includes('/health')) {
         return {
           ok: true,

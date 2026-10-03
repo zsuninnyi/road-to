@@ -11,6 +11,7 @@ import type {
   ActivityRecord,
   IntegrationRecord,
   IntegrationRepository,
+  ProjectRecord,
   PublicActivity,
   UpsertIntegrationInput,
 } from './types.js';
@@ -364,5 +365,88 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
       }
       return this.getActivityById(userId, id);
     },
+    async findActivityByExternalId(userId, externalId) {
+      const source = await db
+        .selectFrom('activity_sources')
+        .innerJoin('activities', 'activities.id', 'activity_sources.activity_id')
+        .select('activities.id as activity_id')
+        .where('activity_sources.provider', '=', 'strava')
+        .where('activity_sources.external_id', '=', externalId)
+        .where('activities.user_id', '=', userId)
+        .executeTakeFirst();
+      if (!source) {
+        return null;
+      }
+      return this.getActivityById(userId, source.activity_id);
+    },
+    async getIntegrationByExternalUserId(externalUserId) {
+      const row = await db
+        .selectFrom('integrations')
+        .selectAll()
+        .where('provider', '=', 'strava')
+        .where('external_user_id', '=', externalUserId)
+        .executeTakeFirst();
+      return row ? toRecord(row) : null;
+    },
+    async getUserUnits(userId) {
+      const row = await db
+        .selectFrom('user')
+        .select('units')
+        .where('id', '=', userId)
+        .executeTakeFirst();
+      return row?.units === 'imperial' ? 'imperial' : 'metric';
+    },
+    async listProjects(userId) {
+      const rows = await db
+        .selectFrom('projects')
+        .selectAll()
+        .where('user_id', '=', userId)
+        .orderBy('created_at', 'desc')
+        .execute();
+      return rows.map(toProject);
+    },
+    async getProject(userId, id) {
+      const row = await db
+        .selectFrom('projects')
+        .selectAll()
+        .where('id', '=', id)
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+      return row ? toProject(row) : null;
+    },
+    async createProject(userId, input) {
+      const id = randomUUID();
+      await db
+        .insertInto('projects')
+        .values({
+          id,
+          user_id: userId,
+          name: input.name,
+          sport: input.sport,
+        })
+        .execute();
+      return { id, userId, name: input.name, sport: input.sport };
+    },
+    async linkProjectActivity(projectId, activityId) {
+      await db
+        .insertInto('project_activities')
+        .values({ project_id: projectId, activity_id: activityId })
+        .onConflict((oc) => oc.columns(['project_id', 'activity_id']).doNothing())
+        .execute();
+    },
+  };
+}
+
+function toProject(row: {
+  id: string;
+  user_id: string;
+  name: string;
+  sport: ProjectRecord['sport'];
+}): ProjectRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    sport: row.sport,
   };
 }

@@ -46,6 +46,14 @@ export function getStravaCredentials(): { clientId: string; clientSecret: string
   };
 }
 
+export function getStravaWebhookCallbackUrl(): string {
+  return process.env.STRAVA_WEBHOOK_CALLBACK_URL ?? '';
+}
+
+export function getStravaWebhookVerifyToken(): string {
+  return process.env.STRAVA_WEBHOOK_VERIFY_TOKEN ?? 'road-to-strava';
+}
+
 export function getStravaRedirectUri(): string {
   return (
     process.env.STRAVA_REDIRECT_URI ?? `${getAuthBaseUrl()}/api/v1/integrations/strava/callback`

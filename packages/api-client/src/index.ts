@@ -74,6 +74,22 @@ export type ActivitiesResponse = {
   activities: Activity[];
 };
 
+export type Project = {
+  id: string;
+  name: string;
+  sport: string;
+  totalDistanceM: number;
+  note: string | null;
+};
+
+export type ProjectDetail = Project & {
+  activities: Activity[];
+};
+
+export type ProjectsResponse = {
+  projects: Project[];
+};
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -131,6 +147,19 @@ export function createApiClient(options: ApiClientOptions) {
     },
     resyncActivity(id: string): Promise<ActivityDetail> {
       return request<ActivityDetail>(`/v1/activities/${id}/resync`, { method: 'POST' });
+    },
+    projects(): Promise<ProjectsResponse> {
+      return request<ProjectsResponse>('/v1/projects');
+    },
+    project(id: string): Promise<ProjectDetail> {
+      return request<ProjectDetail>(`/v1/projects/${id}`);
+    },
+    createProject(input: { name: string; sport: string }): Promise<ProjectDetail> {
+      return request<ProjectDetail>('/v1/projects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
     },
     updateActivity(
       id: string,

@@ -44,6 +44,9 @@ export async function buildApp(options: AppOptions = {}) {
   await registerSwagger(app);
   await registerAuthRoutes(app, auth);
   await registerIntegrationRoutes(app, { auth, integrations });
+  void integrations.ensureStravaWebhook().catch((error: unknown) => {
+    app.log.error(error);
+  });
 
   const health = async () => ({ ok: true as const });
   app.get('/health', { schema: healthRouteSchema }, health);

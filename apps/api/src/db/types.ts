@@ -113,6 +113,20 @@ export type ActivitySourceTable = {
   deleted_on_provider_at: Date | null;
 };
 
+export type ProjectTable = {
+  id: string;
+  user_id: string;
+  name: string;
+  sport: Sport;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+};
+
+export type ProjectActivityTable = {
+  project_id: string;
+  activity_id: string;
+};
+
 export type Database = {
   user: UserTable;
   session: SessionTable;
@@ -121,4 +135,6 @@ export type Database = {
   integrations: IntegrationTable;
   activities: ActivityTable;
   activity_sources: ActivitySourceTable;
+  projects: ProjectTable;
+  project_activities: ProjectActivityTable;
 };

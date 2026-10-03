@@ -515,11 +515,13 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 ### Phase 3 — Projects
 
-**Next.**
+**In progress.**
 
-- CRUD projects, manual assign, date-window + sport rules, sticky exclude.
+- Create a project with a name and a sport. **Done.** Activities of that sport are linked, and each note is written as `Name — 10.2 km` (project name plus the sport total). The note is also pushed to Strava when `activity:write` is present.
+- Fetch Strava detail and streams when an activity is imported, and when Strava sends an activity-create webhook. Opening the activity is not required. **Done.** Set `STRAVA_WEBHOOK_CALLBACK_URL` to a public URL so live creates arrive.
+- CRUD beyond create, manual assign, date-window + sport rules, sticky exclude.
 - One pinned goal activity per project; project list sorts pin first, then newest.
-- Project-scoped list.
+- Project-scoped list that is more than “every activity of this sport”.
 - Re-run rules after import.
 
 **Exit:** “Road to Marathon” auto-picks 2026-01-01..2026-04-30 runs, and the race can be pinned to the top of the list.
@@ -657,6 +659,6 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 
 ## 13. Next implementation ticket
 
-Phases 0–2 are in. The next slice is **Phase 3 — Projects**.
+Phases 0–2 are in. Phase 3 has the first slice: projects by sport, eager Strava fetch, and the automatic progress note. Still in Phase 3: date windows, sticky exclude, and a pinned goal activity.
 
 Do not start account delete or Sign in with Apple before that. Account delete is Phase 8. Apple sign-in is Phase 9. The mobile app is Phase 10, after both. Do not scaffold Garmin, Whoop, or TrainingPeaks adapters up front.
