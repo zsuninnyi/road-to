@@ -80,6 +80,7 @@ export function stubSession(
           const body = JSON.parse(String(init?.body ?? '{}')) as {
             description?: string | null;
             title?: string | null;
+            visibility?: 'private' | 'public';
           };
           const next = { ...options.activity };
           if (body.description !== undefined) {
@@ -94,6 +95,9 @@ export function stubSession(
               next.title = trimmed;
               next.titleOverridden = true;
             }
+          }
+          if (body.visibility === 'public' || body.visibility === 'private') {
+            next.visibility = body.visibility;
           }
           options.activity = next;
           if (options.activities) {

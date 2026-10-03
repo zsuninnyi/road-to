@@ -22,6 +22,7 @@ const morningRun = {
   avgHr: 148,
   mapPolyline: null,
   description: null,
+  visibility: 'private' as const,
   sources: [{ provider: 'strava' as const }],
   timezone: '(GMT+02:00) Europe/Budapest',
   maxHr: 171,
@@ -86,6 +87,18 @@ describe('ActivityDetailPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Refresh from Strava' }));
 
     expect(await screen.findByLabelText('Title')).toHaveValue('Morning Run');
+  });
+
+  it('marks the activity public', async () => {
+    const user = userEvent.setup();
+    stubSession(signedInUser, { activity: { ...morningRun } });
+    await renderRoute('/app/activities/act_1');
+
+    const visibility = await screen.findByLabelText('Visibility');
+    expect(visibility).toHaveValue('private');
+    await user.selectOptions(visibility, 'public');
+
+    expect(visibility).toHaveValue('public');
   });
 
   it('shows an error when the activity is missing', async () => {

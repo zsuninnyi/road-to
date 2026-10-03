@@ -1,4 +1,9 @@
-import type { ActivityStreamsDto, NormalizedProviderActivity, Sport } from '@road-to/domain';
+import type {
+  ActivityStreamsDto,
+  ActivityVisibility,
+  NormalizedProviderActivity,
+  Sport,
+} from '@road-to/domain';
 
 export type IntegrationStatus = 'active' | 'expired' | 'error' | 'revoked';
 
@@ -37,6 +42,7 @@ export type PublicActivity = {
   avgHr: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
   sources: Array<{ provider: 'strava' }>;
 };
 
@@ -69,6 +75,7 @@ export type ActivityRecord = {
   calories: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
   integrationId: string;
   externalId: string;
   payload: unknown;
@@ -118,6 +125,7 @@ export type IntegrationRepository = {
       description?: string | null;
       title?: string;
       titleOverridden?: boolean;
+      visibility?: ActivityVisibility;
     },
   ): Promise<ActivityRecord | null>;
 };

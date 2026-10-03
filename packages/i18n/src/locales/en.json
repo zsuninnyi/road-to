@@ -54,7 +54,11 @@
     "titleError": "Could not save the title.",
     "useProviderTitle": "Use Strava title",
     "resyncActivity": "Refresh from Strava",
-    "resyncActivityError": "Could not refresh this activity."
+    "resyncActivityError": "Could not refresh this activity.",
+    "visibility": "Visibility",
+    "private": "Private",
+    "public": "Public",
+    "visibilityError": "Could not update visibility."
   },
   "projects": {
     "title": "Projects",

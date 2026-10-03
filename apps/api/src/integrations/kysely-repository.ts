@@ -277,6 +277,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
         avgHr: row.avg_hr,
         mapPolyline: row.map_polyline,
         description: row.description,
+        visibility: row.visibility,
         sources: [{ provider: 'strava' as const }],
       }));
       return result;
@@ -304,6 +305,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           'activities.calories as calories',
           'activities.map_polyline as map_polyline',
           'activities.description as description',
+          'activities.visibility as visibility',
           'activity_sources.integration_id as integration_id',
           'activity_sources.external_id as external_id',
           'activity_sources.payload as payload',
@@ -334,6 +336,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
         calories: row.calories,
         mapPolyline: row.map_polyline,
         description: row.description,
+        visibility: row.visibility,
         integrationId: row.integration_id,
         externalId: row.external_id,
         payload: row.payload,
@@ -349,6 +352,7 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           ...(fields.titleOverridden !== undefined
             ? { title_overridden: fields.titleOverridden }
             : {}),
+          ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
           updated_at: new Date(),
         })
         .where('id', '=', id)

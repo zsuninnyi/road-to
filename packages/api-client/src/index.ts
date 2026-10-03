@@ -49,6 +49,7 @@ export type Activity = {
   avgHr: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: 'private' | 'public';
   sources: Array<{ provider: 'strava' }>;
 };
 
@@ -133,7 +134,11 @@ export function createApiClient(options: ApiClientOptions) {
     },
     updateActivity(
       id: string,
-      input: { description?: string | null; title?: string | null },
+      input: {
+        description?: string | null;
+        title?: string | null;
+        visibility?: 'private' | 'public';
+      },
     ): Promise<ActivityDetail> {
       return request<ActivityDetail>(`/v1/activities/${id}`, {
         method: 'PATCH',

@@ -1,4 +1,5 @@
 import {
+  activityVisibilities,
   asJsonRecord,
   isHydratedStravaPayload,
   normalizeStravaSummary,
@@ -6,6 +7,7 @@ import {
   parseStravaSummary,
   stravaBackfillAfterUnix,
   trimStravaDetail,
+  type ActivityVisibility,
 } from '@road-to/domain';
 import { decryptSecret, encryptSecret } from '../crypto/tokens.js';
 import { createOAuthState, readOAuthState } from './oauth-state.js';
@@ -64,7 +66,11 @@ export type IntegrationService = {
   updateActivity(
     userId: string,
     activityId: string,
-    input: { description?: string | null; title?: string | null },
+    input: {
+      description?: string | null;
+      title?: string | null;
+      visibility?: ActivityVisibility;
+    },
   ): Promise<PublicActivityDetail>;
 };
 
@@ -129,6 +135,7 @@ function toActivityDetail(row: ActivityRecord): PublicActivityDetail {
     calories: row.calories,
     mapPolyline: row.mapPolyline,
     description: row.description,
+    visibility: row.visibility,
     sources: [{ provider: 'strava' }],
     titleOverridden: row.titleOverridden,
     hydrated,
@@ -343,9 +350,16 @@ export function createIntegrationService(options: {
         description?: string | null;
         title?: string;
         titleOverridden?: boolean;
+        visibility?: ActivityVisibility;
       } = {};
       if ('description' in input) {
         fields.description = normalizeOwnerDescription(input.description ?? null);
+      }
+      if (
+        input.visibility &&
+        (activityVisibilities as readonly string[]).includes(input.visibility)
+      ) {
+        fields.visibility = input.visibility;
       }
       if ('title' in input) {
         const trimmed = input.title?.trim() ?? '';

@@ -41,6 +41,7 @@ const activitySchema = {
     'avgHr',
     'mapPolyline',
     'description',
+    'visibility',
     'sources',
   ],
   properties: {
@@ -56,6 +57,7 @@ const activitySchema = {
     avgHr: { type: ['integer', 'null'] },
     mapPolyline: { type: ['string', 'null'] },
     description: { type: ['string', 'null'] },
+    visibility: { type: 'string', enum: ['private', 'public'] },
     sources: {
       type: 'array',
       items: {
@@ -355,6 +357,7 @@ export async function registerIntegrationRoutes(
           properties: {
             description: { type: ['string', 'null'], maxLength: 4000 },
             title: { type: ['string', 'null'], maxLength: 255 },
+            visibility: { type: 'string', enum: ['private', 'public'] },
           },
         },
         response: {
@@ -371,7 +374,11 @@ export async function registerIntegrationRoutes(
         return;
       }
       const { id } = request.params as { id: string };
-      const body = request.body as { description?: string | null; title?: string | null };
+      const body = request.body as {
+        description?: string | null;
+        title?: string | null;
+        visibility?: 'private' | 'public';
+      };
       try {
         return await integrations.updateActivity(user.id, id, body);
       } catch (error) {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isHydratedStravaPayload, type Sport } from '@road-to/domain';
+import { isHydratedStravaPayload, type ActivityVisibility, type Sport } from '@road-to/domain';
 import type {
   ActivityRecord,
   IntegrationRecord,
@@ -27,6 +27,7 @@ type StoredActivity = {
   calories: number | null;
   mapPolyline: string | null;
   description: string | null;
+  visibility: ActivityVisibility;
 };
 
 type StoredSource = {
@@ -52,6 +53,7 @@ function toPublic(row: StoredActivity): PublicActivity {
     avgHr: row.avgHr,
     mapPolyline: row.mapPolyline,
     description: row.description,
+    visibility: row.visibility,
     sources: [{ provider: 'strava' }],
   };
 }
@@ -163,6 +165,7 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         calories: input.normalized.calories,
         mapPolyline: input.normalized.mapPolyline,
         description: existingActivity?.description ?? null,
+        visibility: existingActivity?.visibility ?? 'private',
       });
       sources.set(key, {
         id: sourceId,
@@ -203,6 +206,7 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         ...(fields.description !== undefined ? { description: fields.description } : {}),
         ...(fields.title !== undefined ? { title: fields.title } : {}),
         ...(fields.titleOverridden !== undefined ? { titleOverridden: fields.titleOverridden } : {}),
+        ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
       });
       return this.getActivityById(userId, id);
     },

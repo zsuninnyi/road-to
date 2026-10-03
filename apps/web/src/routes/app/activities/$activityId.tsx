@@ -91,6 +91,7 @@ function ActivityDetailPage() {
         <span className="mx-2">·</span>
         <span className="capitalize">{activity.sport}</span>
       </p>
+      <ActivityVisibilityControl activityId={activity.id} visibility={activity.visibility} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -167,6 +168,49 @@ function ActivityDetailPage() {
         <Sparkline values={activity.streams.heartrate} label={t('activities.hrChart')} />
       ) : null}
     </section>
+  );
+}
+
+function ActivityVisibilityControl({
+  activityId,
+  visibility,
+}: {
+  activityId: string;
+  visibility: 'private' | 'public';
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const saveMutation = useMutation({
+    mutationFn: (value: 'private' | 'public') =>
+      api.updateActivity(activityId, { visibility: value }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['activity', activityId] });
+      await queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+
+  return (
+    <div className="mt-4">
+      <label className="block text-sm font-medium" htmlFor="activity-visibility">
+        {t('activities.visibility')}
+      </label>
+      <select
+        id="activity-visibility"
+        className="mt-2 rounded-md border border-line bg-surface px-3 py-2 text-sm"
+        value={visibility}
+        disabled={saveMutation.isPending}
+        onChange={(event) => {
+          const value = event.target.value === 'public' ? 'public' : 'private';
+          saveMutation.mutate(value);
+        }}
+      >
+        <option value="private">{t('activities.private')}</option>
+        <option value="public">{t('activities.public')}</option>
+      </select>
+      {saveMutation.isError ? (
+        <p className="mt-2 text-sm text-danger">{t('activities.visibilityError')}</p>
+      ) : null}
+    </div>
   );
 }
 
