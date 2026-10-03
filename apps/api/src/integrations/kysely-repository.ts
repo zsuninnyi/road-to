@@ -423,9 +423,42 @@ export function createKyselyIntegrationRepository(db: Kysely<Database>): Integra
           user_id: userId,
           name: input.name,
           sport: input.sport,
+          visibility: 'private',
         })
         .execute();
-      return { id, userId, name: input.name, sport: input.sport };
+      return { id, userId, name: input.name, sport: input.sport, visibility: 'private' };
+    },
+    async findProject(id) {
+      const row = await db
+        .selectFrom('projects')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
+      return row ? toProject(row) : null;
+    },
+    async getPublicUser(userId) {
+      const row = await db
+        .selectFrom('user')
+        .select(['name', 'image'])
+        .where('id', '=', userId)
+        .executeTakeFirst();
+      if (!row) {
+        return null;
+      }
+      return { name: row.name, image: row.image };
+    },
+    async updateProjectFields(userId, id, fields) {
+      const updated = await db
+        .updateTable('projects')
+        .set({
+          ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
+          updated_at: new Date(),
+        })
+        .where('id', '=', id)
+        .where('user_id', '=', userId)
+        .returningAll()
+        .executeTakeFirst();
+      return updated ? toProject(updated) : null;
     },
     async linkProjectActivity(projectId, activityId) {
       await db
@@ -442,11 +475,13 @@ function toProject(row: {
   user_id: string;
   name: string;
   sport: ProjectRecord['sport'];
+  visibility: ProjectRecord['visibility'];
 }): ProjectRecord {
   return {
     id: row.id,
     userId: row.user_id,
     name: row.name,
     sport: row.sport,
+    visibility: row.visibility === 'public' ? 'public' : 'private',
   };
 }

@@ -69,7 +69,12 @@
     "openHint": "New Strava activities in this sport are added on their own. The note is the project name and the total distance.",
     "empty": "No projects yet.",
     "total": "Total distance",
-    "note": "Note"
+    "note": "Note",
+    "visibility": "Visibility",
+    "visibilityError": "Could not update visibility.",
+    "shareLink": "Share page",
+    "shareHint": "Anyone with this link can see this project and every activity in it.",
+    "loadError": "Could not load this project."
   },
   "sports": {
     "run": "Run",

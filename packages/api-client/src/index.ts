@@ -78,12 +78,18 @@ export type Project = {
   id: string;
   name: string;
   sport: string;
+  visibility: 'private' | 'public';
   totalDistanceM: number;
   note: string | null;
 };
 
 export type ProjectDetail = Project & {
   activities: Activity[];
+};
+
+export type PublicProjectShare = ProjectDetail & {
+  owner: { name: string; image: string | null };
+  units: 'metric' | 'imperial';
 };
 
 export type ProjectsResponse = {
@@ -160,6 +166,16 @@ export function createApiClient(options: ApiClientOptions) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
       });
+    },
+    updateProject(id: string, input: { visibility: 'private' | 'public' }): Promise<ProjectDetail> {
+      return request<ProjectDetail>(`/v1/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+    },
+    publicProject(id: string): Promise<PublicProjectShare> {
+      return request<PublicProjectShare>(`/v1/public/projects/${id}`);
     },
     updateActivity(
       id: string,

@@ -438,7 +438,7 @@ POST   /v1/webhooks/garmin
 POST   /v1/webhooks/trainingpeaks
 ```
 
-Authorization helpers live in one module: `assertOwner`, `resolveShare`. Share payloads are DTOs that include owner display name and avatar, source badges, and omit tokens, emails, and private activities.
+Authorization helpers live in one module: `assertOwner`, `resolveShare`. Share payloads are DTOs that include owner display name and avatar, source badges, and omit tokens and emails. A public project includes every activity in that project. A single-activity share still omits private activities.
 
 ---
 
@@ -519,6 +519,8 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 - Create a project with a name and a sport. **Done.** Activities of that sport are linked, and each note is written as `Name — 10.2 km` (project name plus the sport total). The note is also pushed to Strava when `activity:write` is present.
 - Fetch Strava detail and streams when an activity is imported, and when Strava sends an activity-create webhook. Opening the activity is not required. **Done.** Set `STRAVA_WEBHOOK_CALLBACK_URL` to a public URL so live creates arrive.
+- Project visibility (`private` | `public`), default private. A public project is shared at `/share/projects/:id` with every activity in it. Activity visibility does not hide an activity from that page. **Done.**
+- Project activity rows match the activity list: name, date, sport, visibility, note, distance, moving time, and pace for runs. **Done.** The share page uses the same row.
 - CRUD beyond create, manual assign, date-window + sport rules, sticky exclude.
 - One pinned goal activity per project; project list sorts pin first, then newest.
 - Project-scoped list that is more than “every activity of this sport”.
@@ -528,11 +530,13 @@ Build in vertical slices that are demoable. Do not connect four providers before
 
 ### Phase 4 — Sharing
 
-- `share_links`, public DTO, `/share/:token` route.
-- Revoke.
+Project visibility already publishes `/share/projects/:id` with every activity in the project.
+
+- `share_links` and revoke, if a link should die without flipping the project back to private.
+- Single-activity shares that still omit private activities.
 - Optional Fastify OG HTML for link unfurls.
 
-**Exit:** logged-out browser sees owner name and photo and only public project activities.
+**Exit:** logged-out browser sees owner name and photo. A public project shows all of its activities.
 
 ### Phase 5 — Whoop + aggregations
 
@@ -659,6 +663,8 @@ Strava/Whoop OAuth needs public callback URLs: use a tunnel (ngrok/Cloudflare Tu
 
 ## 13. Next implementation ticket
 
-Phases 0–2 are in. Phase 3 has the first slice: projects by sport, eager Strava fetch, and the automatic progress note. Still in Phase 3: date windows, sticky exclude, and a pinned goal activity.
+Phases 0–2 are in. Phase 3 can create a project, fetch Strava activities, write the progress note, share a public project, and list activities with the same row as the activity list.
+
+The next slice is still Phase 3: a date window on the project, so membership is the activities of that sport inside the window, with sticky exclude for a manual removal. After that, pin one goal activity to the top of the project list.
 
 Do not start account delete or Sign in with Apple before that. Account delete is Phase 8. Apple sign-in is Phase 9. The mobile app is Phase 10, after both. Do not scaffold Garmin, Whoop, or TrainingPeaks adapters up front.

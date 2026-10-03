@@ -249,9 +249,28 @@ export function createMemoryIntegrationRepository(): IntegrationRepository {
         userId,
         name: input.name,
         sport: input.sport,
+        visibility: 'private',
       };
       projects.set(project.id, project);
       return project;
+    },
+    async findProject(id) {
+      return projects.get(id) ?? null;
+    },
+    async getPublicUser() {
+      return { name: 'Viktor', image: null };
+    },
+    async updateProjectFields(userId, id, fields) {
+      const project = projects.get(id);
+      if (!project || project.userId !== userId) {
+        return null;
+      }
+      const next: ProjectRecord = {
+        ...project,
+        ...(fields.visibility !== undefined ? { visibility: fields.visibility } : {}),
+      };
+      projects.set(id, next);
+      return next;
     },
     async linkProjectActivity(projectId, activityId) {
       projectActivities.add(`${projectId}:${activityId}`);

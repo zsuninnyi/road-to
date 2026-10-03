@@ -118,6 +118,7 @@ export type ProjectTable = {
   user_id: string;
   name: string;
   sport: Sport;
+  visibility: Generated<ActivityVisibility>;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 };

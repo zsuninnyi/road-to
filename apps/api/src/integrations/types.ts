@@ -87,6 +87,12 @@ export type ProjectRecord = {
   userId: string;
   name: string;
   sport: Sport;
+  visibility: ActivityVisibility;
+};
+
+export type PublicUser = {
+  name: string;
+  image: string | null;
 };
 
 export type UpsertIntegrationInput = {
@@ -131,7 +137,14 @@ export type IntegrationRepository = {
   getUserUnits(userId: string): Promise<Units>;
   listProjects(userId: string): Promise<ProjectRecord[]>;
   getProject(userId: string, id: string): Promise<ProjectRecord | null>;
+  findProject(id: string): Promise<ProjectRecord | null>;
+  getPublicUser(userId: string): Promise<PublicUser | null>;
   createProject(userId: string, input: { name: string; sport: Sport }): Promise<ProjectRecord>;
+  updateProjectFields(
+    userId: string,
+    id: string,
+    fields: { visibility?: ActivityVisibility },
+  ): Promise<ProjectRecord | null>;
   linkProjectActivity(projectId: string, activityId: string): Promise<void>;
   updateActivityFields(
     userId: string,

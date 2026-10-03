@@ -84,6 +84,12 @@ export type IntegrationService = {
     userId: string,
     input: { name: string; sport: Sport },
   ): Promise<PublicProjectDetail>;
+  updateProject(
+    userId: string,
+    projectId: string,
+    input: { visibility?: ActivityVisibility },
+  ): Promise<PublicProjectDetail>;
+  getPublicProject(projectId: string): Promise<PublicProjectShare>;
   readStravaWebhookChallenge(query: {
     mode?: string;
     challenge?: string;
@@ -102,12 +108,18 @@ export type PublicProject = {
   id: string;
   name: string;
   sport: Sport;
+  visibility: ActivityVisibility;
   totalDistanceM: number;
   note: string | null;
 };
 
 export type PublicProjectDetail = PublicProject & {
   activities: PublicActivity[];
+};
+
+export type PublicProjectShare = PublicProjectDetail & {
+  owner: { name: string; image: string | null };
+  units: Units;
 };
 
 function toPublic(row: {
@@ -315,7 +327,9 @@ export function createIntegrationService(options: {
     raw: unknown,
   ): Promise<void> {
     const existing = await options.repo.findActivityByExternalId(userId, normalized.externalId);
-    const alreadyFetched = existing ? isHydratedStravaPayload(asJsonRecord(existing.payload)) : false;
+    const alreadyFetched = existing
+      ? isHydratedStravaPayload(asJsonRecord(existing.payload))
+      : false;
     if (!alreadyFetched && options.strava) {
       const accessToken = await validAccessToken(integration);
       const activity = await options.strava.getActivity(accessToken, normalized.externalId);
@@ -378,7 +392,7 @@ export function createIntegrationService(options: {
   }
 
   function projectView(
-    project: { id: string; name: string; sport: Sport },
+    project: { id: string; name: string; sport: Sport; visibility: ActivityVisibility },
     activities: PublicActivity[],
     units: Units,
   ): PublicProjectDetail {
@@ -390,6 +404,7 @@ export function createIntegrationService(options: {
       id: project.id,
       name: project.name,
       sport: project.sport,
+      visibility: project.visibility,
       totalDistanceM,
       note,
       activities: matching,
@@ -577,6 +592,7 @@ export function createIntegrationService(options: {
           id: detail.id,
           name: detail.name,
           sport: detail.sport,
+          visibility: detail.visibility,
           totalDistanceM: detail.totalDistanceM,
           note: detail.note,
         };
@@ -593,6 +609,41 @@ export function createIntegrationService(options: {
       const project = await options.repo.createProject(userId, { name, sport: input.sport });
       await applyProjectNotes(userId);
       return toPublicProject(userId, project.id);
+    },
+    async updateProject(userId, projectId, input) {
+      const existing = await options.repo.getProject(userId, projectId);
+      if (!existing) {
+        throw new ActivityNotFoundError();
+      }
+      if (
+        input.visibility &&
+        (activityVisibilities as readonly string[]).includes(input.visibility)
+      ) {
+        const updated = await options.repo.updateProjectFields(userId, projectId, {
+          visibility: input.visibility,
+        });
+        if (!updated) {
+          throw new ActivityNotFoundError();
+        }
+      }
+      return toPublicProject(userId, projectId);
+    },
+    async getPublicProject(projectId) {
+      const project = await options.repo.findProject(projectId);
+      if (!project || project.visibility !== 'public') {
+        throw new ActivityNotFoundError();
+      }
+      const owner = await options.repo.getPublicUser(project.userId);
+      if (!owner) {
+        throw new ActivityNotFoundError();
+      }
+      const units = await options.repo.getUserUnits(project.userId);
+      const activities = await options.repo.listActivities(project.userId);
+      return {
+        owner,
+        units,
+        ...projectView(project, activities, units),
+      };
     },
     readStravaWebhookChallenge(query) {
       if (query.mode !== 'subscribe' || !query.challenge) {
@@ -643,6 +694,8 @@ export function createUnavailableIntegrationService(): IntegrationService {
     listProjects: fail,
     getProject: fail,
     createProject: fail,
+    updateProject: fail,
+    getPublicProject: fail,
     readStravaWebhookChallenge: () => null,
     acceptStravaWebhook: fail,
     ensureStravaWebhook: async () => undefined,

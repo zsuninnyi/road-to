@@ -586,10 +586,71 @@ describe('Strava integrations', () => {
     const descriptions = (
       listed.json() as { activities: { description: string | null }[] }
     ).activities.map((activity) => activity.description);
-    expect(descriptions).toEqual([
-      'Road to Marathon — 20.4 km',
-      'Road to Marathon — 20.4 km',
-    ]);
+    expect(descriptions).toEqual(['Road to Marathon — 20.4 km', 'Road to Marathon — 20.4 km']);
+  });
+
+  it('shares a public project with every activity and hides a private one', async () => {
+    const server = await build();
+    const state = createOAuthState(
+      'user_1',
+      secrets.oauthSecret,
+      Date.parse('2026-09-23T12:00:00Z'),
+    );
+    await server.inject({
+      method: 'GET',
+      url: `/v1/integrations/strava/callback?code=ok-code&state=${encodeURIComponent(state)}`,
+    });
+    const created = await server.inject({
+      method: 'POST',
+      url: '/v1/projects',
+      payload: { name: 'Road to Marathon', sport: 'run' },
+    });
+    const projectId = (created.json() as { id: string }).id;
+    expect(created.json()).toMatchObject({ visibility: 'private' });
+
+    const hidden = await server.inject({
+      method: 'GET',
+      url: `/v1/public/projects/${projectId}`,
+    });
+    expect(hidden.statusCode).toBe(404);
+
+    const published = await server.inject({
+      method: 'PATCH',
+      url: `/v1/projects/${projectId}`,
+      payload: { visibility: 'public' },
+    });
+    expect(published.statusCode).toBe(200);
+    expect(published.json()).toMatchObject({ visibility: 'public' });
+
+    const shared = await server.inject({
+      method: 'GET',
+      url: `/v1/public/projects/${projectId}`,
+    });
+    expect(shared.statusCode).toBe(200);
+    expect(shared.json()).toMatchObject({
+      owner: { name: 'Viktor', image: null },
+      units: 'metric',
+      name: 'Road to Marathon',
+      visibility: 'public',
+      totalDistanceM: 10200,
+      note: 'Road to Marathon — 10.2 km',
+      activities: [
+        {
+          title: 'Morning Run',
+          visibility: 'private',
+          description: 'Road to Marathon — 10.2 km',
+        },
+      ],
+    });
+  });
+
+  it('lets a guest reach a missing public project without a session', async () => {
+    const server = await build(null);
+    const response = await server.inject({
+      method: 'GET',
+      url: '/v1/public/projects/missing',
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   it('returns 404 when patching an unknown activity', async () => {

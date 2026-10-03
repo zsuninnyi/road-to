@@ -99,7 +99,11 @@ export function ProjectsPage() {
               >
                 {project.name}
               </Link>
-              <p className="text-sm text-muted">{t(`sports.${project.sport as (typeof sports)[number]}`)}</p>
+              <p className="text-sm text-muted">
+                {t(`sports.${project.sport as (typeof sports)[number]}`)}
+                <span className="mx-2">·</span>
+                {project.visibility === 'public' ? t('activities.public') : t('activities.private')}
+              </p>
             </li>
           ))}
         </ul>
